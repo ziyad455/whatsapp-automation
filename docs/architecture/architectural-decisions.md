@@ -1,0 +1,41 @@
+# Architectural decisions
+
+## One shared Mastra server
+
+A single application serves all businesses. This keeps deployment and operations simple while tenant authorization and data access provide isolation. Separate per-business servers would multiply cost and configuration without solving isolation by themselves.
+
+## One shared customer-service agent
+
+Business behavior comes from request-scoped context, rules, and tools rather than hard-coded agents per company. The agent definition is shared; tenant state is not.
+
+## React + Vite + TypeScript dashboard
+
+The dashboard is a client application for business configuration and operations. Server rendering and Next.js-specific capabilities are not current requirements.
+
+## Mastra custom routes without Express
+
+Mastra is the backend runtime for HTTP routes, agents, tools, and workflows. A second Express application is postponed until a concrete limitation justifies it.
+
+## PostgreSQL as the initial system of record
+
+PostgreSQL provides relational integrity for tenant/domain data, durable workflow and message state, migrations, transactions, auditability, and JSONB support. External systems may become authoritative for selected facts through providers later.
+
+## Typed platform data plus schema-defined JSONB
+
+Stable cross-business concepts use typed relational models. Business-specific catalog attributes use JSONB only after validation against BusinessFieldDefinition. This avoids a table/module per vertical without turning the entire domain into unstructured documents.
+
+## Request-time current-data retrieval
+
+The agent retrieves volatile facts through tenant-bound tools when needed. Long-lived prompt snapshots, chat history, and model memory are not trusted for prices, availability, or other changing facts.
+
+## Human handoff as server-side application state
+
+Conversation control is explicit state (AI, HUMAN, or PAUSED), persisted and enforced by the server. It is not inferred independently on every turn or controlled only by UI visibility.
+
+## Database-backed scheduled automation
+
+Follow-ups and later campaigns use durable database records and recurring workflows rather than in-memory timers. This permits restart recovery, cancellation, inspection, and safe retry handling.
+
+## Evidence-led expansion
+
+The system begins as a modular application with manual/database-backed business data. Microservices, infrastructure complexity, external connectors, advanced RAG, billing automation, and new vertical features are added only after pilot or customer evidence demonstrates the need.

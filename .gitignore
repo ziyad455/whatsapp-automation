@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+dashboard/node_modules/
+server/node_modules/
+
+# Environment variables / secrets
+.env
+.env.*
+!.env.example
+
+# Builds
+dist/
+dashboard/dist/
+server/dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
