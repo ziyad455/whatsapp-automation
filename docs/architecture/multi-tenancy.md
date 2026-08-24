@@ -25,6 +25,12 @@ Mastra stores this object under the typed `tenant` key in its request-scoped `Re
 
 The invariant is that protected tenant services and repositories require a resolved context rather than accepting arbitrary business IDs throughout normal application code.
 
+## Tenant-scoped data access
+
+Normal tenant-owned persistence APIs accept `TenantContext`, bind `tenant.businessId` once, and derive ownership filters and create data internally. Create DTOs exclude ownership fields; reads, updates, and deletes combine the record identifier with the bound business ID in the Prisma query. A direct ID from a route, model, or tool therefore cannot change the tenant scope.
+
+The centralized Prisma Client remains an infrastructure primitive for migrations, maintenance, trusted provisioning, and explicit system repositories. It is not the normal application API for tenant-owned records. `Business` is the tenant root and may be accessed by explicit system/bootstrap operations. `BusinessUser` also has a necessary pre-context exception: dashboard tenant resolution must query `(authenticated userId, selected businessId)` before a `TenantContext` can exist. Post-resolution membership access uses the tenant-bound repository instead.
+
 ## Dashboard resolution
 
 1. Authenticate the user through the Better Auth server-side session.

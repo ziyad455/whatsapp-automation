@@ -15,6 +15,10 @@ These concepts have stable meaning across businesses and should use strongly typ
 
 Tenant-owned domain records are scoped by businessId even when they also reference a tenant-owned parent.
 
+Normal application repositories receive a trusted TenantContext and derive `businessId` internally. Ownership is not part of create/update DTOs, and record-ID reads or writes include the tenant business ID in the database predicate. Global access is reserved for explicit infrastructure, provisioning, maintenance, and tenant-resolution boundaries.
+
+`BusinessUser` illustrates both sides of this boundary: the membership lookup used to create TenantContext legitimately runs before context exists, while normal post-resolution membership data access is tenant-bound.
+
 ## Business-specific configuration and catalog
 
 Business profile, hours, policies, entity types, field definitions, and entities describe what is unique to a business. Business-specific catalog attributes use validated JSONB, while their ownership, schema, status, and timestamps remain relational.

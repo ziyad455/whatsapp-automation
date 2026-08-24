@@ -63,6 +63,10 @@ Application/domain persistence follows this path:
 
 Prisma Client is the application query layer, and Prisma Migrate owns the committed application migration history under `server/prisma/migrations/`. Runtime code must reuse `server/src/db/prisma.ts` rather than constructing clients or connection pools ad hoc. Prisma does not replace authorization: tenant-owned repositories require TenantContext and enforce `businessId` scoping in their queries. The current resolver reuses the membership repository's compound-unique lookup and does not query `Business` separately; business lifecycle enforcement remains an explicit open design question.
 
+Tenant-bound repository factories capture `tenant.businessId`; their methods do not accept an ownership selector. Creates build ownership fields from the context, while reads, updates, and deletes include both record ID and business ID in the database operation. `server/src/memberships/tenant-membership.repository.ts` is the first concrete proof using the existing `BusinessUser` model. It enforces data scope only; OWNER/STAFF action policy belongs in a calling service.
+
+Raw Prisma access remains available to explicit infrastructure and system/bootstrap repositories. In particular, `BusinessUser` membership lookup during tenant resolution must accept the authenticated user ID and untrusted business selector before TenantContext exists. This boundary exception must not become a general tenant-data access pattern.
+
 Mastra runtime storage remains conceptually separate from application/domain persistence even when both later use the same PostgreSQL deployment.
 
 ## No separate Express layer
