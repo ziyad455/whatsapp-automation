@@ -29,6 +29,12 @@ npm run dev
 
 Open [http://localhost:4111](http://localhost:4111) in your browser to access [Mastra Studio](https://mastra.ai/docs/studio/overview).
 
+Application endpoints:
+
+- `GET /version` — basic application server information.
+- `GET /health` — Mastra process liveness; it does not query PostgreSQL.
+- `GET /ready` — application readiness backed by a lightweight PostgreSQL check.
+
 Select **Agent** in Mastra Studio and try one of these prompts:
 
 - `Get the weather forecast for Austin this weekend.`
@@ -59,6 +65,16 @@ npm run db:migrate
 Mastra runtime data remains a separate responsibility. The default `file:./mastra.db` database stores agent memory, tasks, and schedules locally. To use Turso, set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` in `.env`.
 
 Recurring schedules continue to use model tokens until you pause them. Ask the agent to pause a schedule with the ID returned by `start_schedule`.
+
+## Tests
+
+Set `TEST_DATABASE_URL` in `.env` to a separate database whose name ends in `_test`. From the repository root, run:
+
+```shell
+npm test
+```
+
+The command refuses the development database, applies pending migrations only to the test database, then runs the unit, database, and live HTTP integration tests.
 
 ## Making it yours
 

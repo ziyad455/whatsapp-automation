@@ -9,8 +9,17 @@ import {
   SensitiveDataFilter,
 } from '@mastra/observability';
 import { env } from '../config/env';
+import { toErrorResponse } from '../http/errors';
+import { applicationLogger } from '../http/logger';
+import { readinessMiddleware, requestContextMiddleware } from '../http/middleware';
+import { getOrCreateRequestId } from '../http/request-context';
+import { applicationRoutes } from '../http/routes';
 import { agent } from './agents/agent';
 import { startScheduleTool, stopScheduleTool } from './tools/schedule-tools';
+
+const observabilityStorage = env.MASTRA_OBSERVABILITY_DATABASE_PATH
+  ? new DuckDBStore({ path: env.MASTRA_OBSERVABILITY_DATABASE_PATH })
+  : new DuckDBStore();
 
 export const mastra = new Mastra({
   bundler: {
@@ -18,6 +27,27 @@ export const mastra = new Mastra({
   },
   agents: { agent },
   tools: { startScheduleTool, stopScheduleTool },
+  logger: applicationLogger,
+  server: {
+    port: env.PORT,
+    apiRoutes: applicationRoutes,
+    middleware: [requestContextMiddleware, readinessMiddleware],
+    onError: (error, context) => {
+      const requestId = getOrCreateRequestId(context.get('requestContext'));
+      const path = new URL(context.req.url).pathname;
+
+      applicationLogger.error('HTTP request failed', {
+        requestId,
+        method: context.req.method,
+        path,
+        errorName: error.name,
+      });
+
+      const response = toErrorResponse(error, requestId);
+      context.header('x-request-id', requestId);
+      return context.json(response.body, response.status);
+    },
+  },
   storage: new MastraCompositeStore({
     id: 'composite-storage',
     default: new LibSQLStore({
@@ -26,7 +56,7 @@ export const mastra = new Mastra({
       authToken: env.TURSO_AUTH_TOKEN,
     }),
     domains: {
-      observability: await new DuckDBStore().getStore('observability'),
+      observability: await observabilityStorage.getStore('observability'),
     },
   }),
   observability: new Observability({
