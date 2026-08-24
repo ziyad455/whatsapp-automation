@@ -10,6 +10,10 @@ Use unit tests for pure validation, state transitions, lead qualification, fresh
 
 Use an isolated test database to verify migrations, repositories, transactions, schema-defined JSONB validation, audit behavior, idempotency, and domain services. Tests should be repeatable from a documented command.
 
+The current TypeScript test runner is Vitest. From the repository root, `npm test` validates the test database, applies pending migrations, and runs unit, database, and live Mastra HTTP integration tests.
+
+`TEST_DATABASE_URL` must point to a database distinct from `DATABASE_URL` and its database name must end in `_test`. The runner refuses the configured development database before applying migrations. Explicit ephemeral mode is reserved for isolated temporary PostgreSQL environments used by CI or local verification; it does not relax the development-database equality check.
+
 ## Tenant-isolation tests
 
 Create at least two businesses with overlapping-looking identifiers and data. Attempt cross-tenant reads and writes through routes, repositories, nested relationships, tools, filters, conversations, leads, follow-ups, and analytics.

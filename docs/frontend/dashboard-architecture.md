@@ -47,6 +47,10 @@ Client validation improves usability, but the server revalidates every payload a
 
 Operational screens must distinguish loading, empty, stale, failed, attention-required, and unauthorized states. Failures should remain actionable without exposing internal stack traces or secrets.
 
+## Current application shell
+
+React Router owns client-side navigation. `/login` and `/dashboard` are placeholder pages, `/` redirects to `/login`, and unknown paths render a not-found page. Authentication guards and business layouts are intentionally deferred until their owning sprints.
+
 ## Open Questions
 
 - The active-business selection and persistence experience for multi-business users is not yet defined.

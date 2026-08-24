@@ -44,6 +44,12 @@ Keep these boundaries clear without creating a large speculative directory tree.
 
 TenantContext is created at trusted entry points and passed through tenant-owned work. Correlation context should connect routes, webhook events, conversations, messages, workflows, tools, and provider calls while limiting sensitive data.
 
+The current HTTP foundation initializes a Mastra `RequestContext` for every request with a validated or generated `request-id`. Authentication and tenant resolution will add typed values at trusted boundaries in later sprints; the correlation context is not a substitute for TenantContext.
+
+Application HTTP code lives under `server/src/http/`. Mastra reserves `/api` for built-in routes, so application custom routes use root-level paths such as `/version`. Mastra's built-in `/health` route is process liveness. An exact-path `/ready` middleware checks the centralized PostgreSQL pool without running migrations.
+
+Mastra's Pino logger provides structured request logs with secret-bearing fields redacted. The server-level error handler maps expected application errors to stable status/code/message responses and replaces unexpected errors with a generic response containing the request ID.
+
 ## Data and transactions
 
 Persistence should make tenant consistency, lifecycle transitions, idempotency, and audit behavior explicit. External calls cannot share a database transaction; designs must account for retries and ambiguous outcomes rather than assuming atomicity across PostgreSQL and providers.
