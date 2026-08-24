@@ -1,11 +1,17 @@
 import { randomUUID } from 'node:crypto';
+import type { BetterAuthUser } from '@mastra/auth-better-auth';
 import type { RequestContext } from '@mastra/core/request-context';
+import { ApplicationError } from './errors';
 
 export const REQUEST_ID_KEY = 'request-id' as const;
+export const AUTHENTICATED_USER_KEY = 'user' as const;
 
 export type ApplicationRequestContext = {
   [REQUEST_ID_KEY]: string;
+  [AUTHENTICATED_USER_KEY]?: BetterAuthUser;
 };
+
+export type AuthenticatedUser = BetterAuthUser['user'];
 
 const validRequestId = /^[A-Za-z0-9._-]{1,128}$/;
 
@@ -40,4 +46,20 @@ export const getOrCreateRequestId = (requestContext: RequestContext): string => 
   }
 
   return initializeRequestContext(requestContext);
+};
+
+export const requireAuthenticatedUser = (
+  requestContext: RequestContext,
+): AuthenticatedUser => {
+  const authenticatedUser = typedRequestContext(requestContext).get(AUTHENTICATED_USER_KEY);
+
+  if (!authenticatedUser?.user.id) {
+    throw new ApplicationError({
+      code: 'UNAUTHORIZED',
+      message: 'Authentication is required.',
+      status: 401,
+    });
+  }
+
+  return authenticatedUser.user;
 };

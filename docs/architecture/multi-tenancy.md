@@ -23,13 +23,15 @@ The exact TypeScript shape is an implementation decision. The invariant is that 
 
 ## Dashboard resolution
 
-1. Authenticate the user.
+1. Authenticate the user through the Better Auth server-side session.
 2. Resolve the intended business through BusinessUser membership.
 3. Verify membership and action permissions on the server.
 4. Construct TenantContext.
 5. Execute all tenant-owned work through that context.
 
 A route parameter, header, token claim, or UI selection can identify the requested business, but none is authorization without membership validation.
+
+The authenticated Better Auth user ID is the platform identity used to query `BusinessUser`. A valid session never implies access to every business, and the browser's protected-route guard is navigation UX rather than an authorization boundary. Active-business selection and `TenantContext` construction remain later work.
 
 ## WhatsApp resolution
 

@@ -9,6 +9,7 @@ import {
   SensitiveDataFilter,
 } from '@mastra/observability';
 import { env } from '../config/env';
+import { mastraAuth } from '../auth/mastra-auth';
 import { toErrorResponse } from '../http/errors';
 import { applicationLogger } from '../http/logger';
 import { readinessMiddleware, requestContextMiddleware } from '../http/middleware';
@@ -30,6 +31,14 @@ export const mastra = new Mastra({
   logger: applicationLogger,
   server: {
     port: env.PORT,
+    auth: mastraAuth,
+    cors: {
+      origin: env.DASHBOARD_URL,
+      allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowHeaders: ['Content-Type', 'Authorization', 'x-request-id'],
+      exposeHeaders: ['x-request-id'],
+      credentials: true,
+    },
     apiRoutes: applicationRoutes,
     middleware: [requestContextMiddleware, readinessMiddleware],
     onError: (error, context) => {

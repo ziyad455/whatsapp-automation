@@ -12,6 +12,12 @@ Business behavior comes from request-scoped context, rules, and tools rather tha
 
 The dashboard is a client application for business configuration and operations. Server rendering and Next.js-specific capabilities are not current requirements.
 
+## Better Auth cookie sessions
+
+Better Auth owns platform identity, credential hashing, and server-side sessions in PostgreSQL. Mastra exposes Better Auth through `/auth/api/*`, authenticates protected requests, and places the verified user in request context. The React dashboard uses the Better Auth client with HttpOnly cookies; it does not store or authorize with browser-managed bearer tokens. Public sign-up is disabled while pilot users are provisioned through controlled server-side operations.
+
+Authentication proves identity only. `BusinessUser` membership and role checks authorize access to a `Business`; Better Auth's organization plugin is not part of the application tenancy model.
+
 ## Mastra custom routes without Express
 
 Mastra is the backend runtime for HTTP routes, agents, tools, and workflows. A second Express application is postponed until a concrete limitation justifies it.

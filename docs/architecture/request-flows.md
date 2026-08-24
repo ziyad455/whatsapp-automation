@@ -3,7 +3,7 @@
 ## Dashboard request
 
     React request
-      -> authenticate user/session
+      -> validate Better Auth server-side cookie session
       -> resolve and authorize business membership
       -> construct TenantContext
       -> validate route input

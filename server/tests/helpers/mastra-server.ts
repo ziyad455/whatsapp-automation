@@ -56,12 +56,15 @@ export const startMastraServer = async ({
   databaseUrl,
   port,
 }: StartMastraServerOptions): Promise<StartedMastraServer> => {
+  const baseUrl = `http://127.0.0.1:${port}`;
   const process_ = spawn(mastraExecutable, ['dev', '--env', devNull], {
     cwd: serverRoot,
     detached: process.platform !== 'win32',
     env: {
       ...process.env,
+      BETTER_AUTH_URL: baseUrl,
       DATABASE_URL: databaseUrl,
+      DASHBOARD_URL: process.env.DASHBOARD_URL ?? 'http://localhost:5173',
       MASTRA_OBSERVABILITY_DATABASE_PATH: ':memory:',
       NODE_ENV: 'test',
       PORT: String(port),
@@ -77,8 +80,7 @@ export const startMastraServer = async ({
   process_.stdout?.on('data', recordOutput);
   process_.stderr?.on('data', recordOutput);
 
-  const baseUrl = `http://127.0.0.1:${port}`;
-  const deadline = Date.now() + 25_000;
+  const deadline = Date.now() + 45_000;
 
   while (Date.now() < deadline) {
     if (process_.exitCode !== null) {

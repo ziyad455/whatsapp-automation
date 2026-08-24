@@ -16,6 +16,8 @@ The current TypeScript test runner is Vitest. From the repository root, `npm tes
 
 Schema changes use `prisma migrate dev` to create migrations in development. Clean or deployed environments use `prisma migrate deploy`; schema-push commands are not a replacement for committed migration history.
 
+Current persistence coverage includes Better Auth identity/credential storage and `BusinessUser` role, uniqueness, multi-business, multi-user, foreign-key, and cascade behavior. HTTP integration coverage exercises disabled public sign-up, valid and invalid credentials, cookie/CORS attributes, session lookup, protected request context, logout, and invalid or expired sessions.
+
 ## Tenant-isolation tests
 
 Create at least two businesses with overlapping-looking identifiers and data. Attempt cross-tenant reads and writes through routes, repositories, nested relationships, tools, filters, conversations, leads, follow-ups, and analytics.
