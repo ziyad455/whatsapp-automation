@@ -2,7 +2,7 @@ import { config } from 'dotenv';
 
 config({ quiet: true });
 
-const { closeDatabaseConnection, verifyDatabaseConnection } = await import('./client');
+const { closeDatabaseConnection, verifyDatabaseConnection } = await import('./prisma');
 
 try {
   await verifyDatabaseConnection();

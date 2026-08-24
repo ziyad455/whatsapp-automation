@@ -1,1 +1,0 @@
--- Intentionally empty. Domain-owning sprints will add application tables.

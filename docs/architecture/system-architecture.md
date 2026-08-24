@@ -10,14 +10,14 @@
            -> tenant resolution and domain services
            -> shared agent and tenant-bound tools
            -> workflows and external transports
-           -> PostgreSQL
+           -> repositories -> Prisma Client -> PostgreSQL
       -> Meta WhatsApp Cloud API
       -> Customer
 
     Owner or staff
       -> React + Vite dashboard
       -> Mastra server
-      -> PostgreSQL and external services
+      -> repositories -> Prisma Client -> PostgreSQL and external services
 
 The browser never accesses PostgreSQL or Meta credentials directly. The shared agent never bypasses application services to obtain tenant data.
 
@@ -28,6 +28,8 @@ dashboard/ presents authenticated business configuration and operations: dynamic
 ## Server boundary
 
 server/ is the application backend and Mastra runtime. It owns request validation, authentication and authorization, tenant resolution, domain behavior, persistence, the shared agent, tools, workflows, webhook handling, external providers, and operational safeguards.
+
+Application services and repositories use the centralized Prisma Client as their typed query layer. They do not expose Prisma directly to the dashboard or treat ORM queries as authorization.
 
 ## PostgreSQL boundary
 

@@ -20,6 +20,8 @@ Dynamic business catalogs use three tenant-owned concepts:
 
 The initial field types are TEXT, LONG_TEXT, NUMBER, BOOLEAN, DATE, DATETIME, SELECT, and MULTI_SELECT.
 
+When this domain is implemented, Prisma `Json` fields map dynamic values to PostgreSQL JSONB. Application validation against BusinessFieldDefinition remains mandatory before persistence; the ORM type does not make arbitrary JSON authoritative or safe.
+
     strong, versioned schema definitions
       + validation before persistence
       + JSONB values for each entity
