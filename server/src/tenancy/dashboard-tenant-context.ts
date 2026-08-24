@@ -68,12 +68,12 @@ export const resolveDashboardTenantContext = async (
     throw tenantAccessDenied();
   }
 
-  const tenantContext: TenantContext = {
+  const tenantContext: TenantContext = Object.freeze({
     userId: user.id,
     businessId: membership.businessId,
     membershipId: membership.id,
     role: membership.role,
-  };
+  });
 
   setTenantContext(requestContext, tenantContext);
   applicationLogger.info('Tenant context resolved', {

@@ -8,11 +8,11 @@
       -> query BusinessUser by verified userId plus selected businessId
       -> construct TenantContext from the authorized membership
       -> validate route input
-      -> tenant-scoped domain service/repository
+      -> bind tenant-scoped domain service/repository to TenantContext
       -> PostgreSQL
       -> safe response
 
-The requested business must be derived from an authorized membership selection. Supplying an ID is not authorization; userId comes only from the verified session, while role and membershipId come only from PostgreSQL. The dashboard path does not infer a tenant when the selector is absent.
+The requested business must be derived from an authorized membership selection. Supplying an ID is not authorization; userId comes only from the verified session, while role and membershipId come only from PostgreSQL. The dashboard path does not infer a tenant when the selector is absent. After resolution, routes pass the trusted context rather than the selector; repositories extract `tenant.businessId` and add it directly to ownership-sensitive Prisma queries.
 
 ## WhatsApp inbound request
 

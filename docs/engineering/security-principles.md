@@ -8,6 +8,8 @@
 - Bind AI tools to the authorized tenant and exclude businessId from model-controlled inputs.
 - Test direct, nested, filtered, and indirect cross-tenant access.
 
+Tenant-owned repository APIs bind a trusted TenantContext and do not accept raw business ownership fields. Reads, updates, and deletes scope by record ID plus `tenant.businessId`; creates set business ownership from the context and ignore caller-controlled ownership. Raw Prisma access is reserved for explicit infrastructure/system boundaries, including the BusinessUser lookup required to construct TenantContext.
+
 ## Authentication and authorization
 
 Authentication identifies the user; BusinessUser membership authorizes tenant access. Sensitive actions also require an appropriate role. UI visibility is not enforcement.

@@ -36,6 +36,12 @@ Prisma Client is the application/domain query layer over PostgreSQL, and Prisma 
 
 Prisma does not provide tenant authorization by itself. TenantContext and repository query scoping remain required for future tenant-owned models. Mastra runtime storage is a separate concern even if it later shares the PostgreSQL deployment.
 
+## Explicit tenant-bound repositories
+
+Normal tenant-owned data access uses small repository functions or factories that require the canonical TenantContext. Ownership fields are derived internally, and direct-ID reads and writes add `tenant.businessId` to their Prisma predicates. Raw Prisma remains available only for explicit infrastructure/system needs; Prisma extensions and PostgreSQL row-level security are deferred defense-in-depth options rather than substitutes for auditable application scoping.
+
+BusinessUser resolution is the intentional exception: the authenticated user ID and selected business ID must be queried before TenantContext exists. Once resolved, normal membership access uses the tenant-bound pattern.
+
 ## Typed platform data plus schema-defined JSONB
 
 Stable cross-business concepts use typed relational models. Business-specific catalog attributes use JSONB only after validation against BusinessFieldDefinition. This avoids a table/module per vertical without turning the entire domain into unstructured documents.
