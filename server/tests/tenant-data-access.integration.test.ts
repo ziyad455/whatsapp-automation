@@ -11,6 +11,10 @@ import {
 } from '../src/memberships/tenant-membership.repository';
 import type { TenantContext } from '../src/tenancy/tenant-context';
 import { assertIsolatedTestDatabase } from './helpers/assert-test-database';
+import {
+  expectCrossTenantMutationDenied,
+  expectCrossTenantReadDenied,
+} from './helpers/tenant-isolation';
 
 assertIsolatedTestDatabase();
 
@@ -104,7 +108,7 @@ describe('tenant-scoped membership data access', () => {
       .toEqualTypeOf<CreateTenantMembershipInput>();
   });
 
-  it('reads only memberships owned by the bound tenant', async () => {
+  it('lists only memberships owned by the bound tenant', async () => {
     const repositoryA = createTenantMembershipRepository(fixtures.tenantA);
     const repositoryB = createTenantMembershipRepository(fixtures.tenantB);
 
@@ -119,14 +123,22 @@ describe('tenant-scoped membership data access', () => {
     expect(membershipsB.every(item => item.businessId === fixtures.tenantB.businessId)).toBe(
       true,
     );
+    expect(membershipsA).not.toContainEqual(fixtures.membershipB);
+    expect(membershipsB).not.toContainEqual(fixtures.membershipA);
+  });
+
+  it('denies exact-ID BOLA reads in both tenant directions', async () => {
+    const repositoryA = createTenantMembershipRepository(fixtures.tenantA);
+    const repositoryB = createTenantMembershipRepository(fixtures.tenantB);
+
     await expect(repositoryA.findById(fixtures.membershipA.id)).resolves.toEqual(
       fixtures.membershipA,
     );
     await expect(repositoryB.findById(fixtures.membershipB.id)).resolves.toEqual(
       fixtures.membershipB,
     );
-    await expect(repositoryA.findById(fixtures.membershipB.id)).resolves.toBeNull();
-    await expect(repositoryB.findById(fixtures.membershipA.id)).resolves.toBeNull();
+    await expectCrossTenantReadDenied(() => repositoryA.findById(fixtures.membershipB.id));
+    await expectCrossTenantReadDenied(() => repositoryB.findById(fixtures.membershipA.id));
   });
 
   it('forces create ownership from TenantContext even for an untyped caller', async () => {
@@ -142,20 +154,29 @@ describe('tenant-scoped membership data access', () => {
 
     expect(membership.businessId).toBe(fixtures.tenantA.businessId);
     expect(membership.businessId).not.toBe(fixtures.tenantB.businessId);
+    await expect(
+      prisma.businessUser.findUnique({
+        where: {
+          userId_businessId: {
+            userId: fixtures.candidateUserId,
+            businessId: fixtures.tenantB.businessId,
+          },
+        },
+      }),
+    ).resolves.toBeNull();
   });
 
   it('scopes updates by both membership ID and tenant ownership', async () => {
     const repositoryA = createTenantMembershipRepository(fixtures.tenantA);
 
-    await expect(repositoryA.updateRole(fixtures.membershipB.id, 'OWNER')).resolves.toBe(
-      false,
+    await expectCrossTenantMutationDenied(
+      () => repositoryA.updateRole(fixtures.membershipB.id, 'OWNER'),
+      () => prisma.businessUser.findUnique({ where: { id: fixtures.membershipB.id } }),
+      fixtures.membershipB,
     );
     await expect(repositoryA.updateRole(fixtures.membershipA.id, 'OWNER')).resolves.toBe(
       true,
     );
-    await expect(
-      prisma.businessUser.findUnique({ where: { id: fixtures.membershipB.id } }),
-    ).resolves.toMatchObject({ role: 'STAFF', businessId: fixtures.tenantB.businessId });
     await expect(
       prisma.businessUser.findUnique({ where: { id: fixtures.membershipA.id } }),
     ).resolves.toMatchObject({ role: 'OWNER', businessId: fixtures.tenantA.businessId });
@@ -164,11 +185,12 @@ describe('tenant-scoped membership data access', () => {
   it('scopes deletes by both membership ID and tenant ownership', async () => {
     const repositoryA = createTenantMembershipRepository(fixtures.tenantA);
 
-    await expect(repositoryA.deleteById(fixtures.membershipB.id)).resolves.toBe(false);
+    await expectCrossTenantMutationDenied(
+      () => repositoryA.deleteById(fixtures.membershipB.id),
+      () => prisma.businessUser.findUnique({ where: { id: fixtures.membershipB.id } }),
+      fixtures.membershipB,
+    );
     await expect(repositoryA.deleteById(fixtures.membershipA.id)).resolves.toBe(true);
-    await expect(
-      prisma.businessUser.findUnique({ where: { id: fixtures.membershipB.id } }),
-    ).resolves.toEqual(fixtures.membershipB);
     await expect(
       prisma.businessUser.findUnique({ where: { id: fixtures.membershipA.id } }),
     ).resolves.toBeNull();

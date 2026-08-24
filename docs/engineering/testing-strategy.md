@@ -26,6 +26,17 @@ Create at least two businesses with overlapping-looking identifiers and data. At
 
 Isolation must fail at deterministic authorization/data layers even when a prompt or direct ID requests another tenant.
 
+Each tenant-owned model's implementation is incomplete until its tests prove:
+
+- both tenants can read their own records;
+- exact foreign IDs do not bypass ownership checks in either direction;
+- lists contain only the bound tenant's records;
+- foreign updates and deletes fail without changing the target;
+- create/update ownership cannot be redirected with caller-supplied `businessId`;
+- applicable HTTP selectors, forged context values, and concurrent requests cannot replace trusted TenantContext state.
+
+Small helpers under `server/tests/helpers/` may standardize denial and no-side-effect assertions. Future Customer, Conversation, Message, BusinessEntity, Lead, and FollowUp tests extend this pattern only when those models are implemented.
+
 ## AI evaluations
 
 Maintain repeatable cases for:

@@ -62,6 +62,8 @@ Tools are constructed or bound with the already-authorized TenantContext. Model-
 
 Isolation tests must cover direct IDs, nested relations, lists and filters, dynamic JSONB entities, AI tools, conversations/messages, leads/follow-ups, analytics, and attempts to influence tenant selection through prompts.
 
+Every new tenant-owned model must add regression coverage for own-tenant reads, exact-ID cross-tenant reads, tenant-only lists, cross-tenant updates and deletes with no side effects, and create/update ownership spoofing. Models scheduled for later sprints add these cases when their persistence path is introduced; placeholder models or fake coverage are not acceptable.
+
 ## Open Questions
 
 - How does a dashboard user with memberships in several businesses select and persist the active membership?
