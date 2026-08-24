@@ -9,6 +9,28 @@ datasource db {
   provider = "postgresql"
 }
 
+enum BusinessLifecycleStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+
+  @@map("business_lifecycle_status")
+}
+
+model Business {
+  id              String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String                  @db.Text
+  category        String                  @db.Text
+  timezone        String                  @db.Text
+  currency        String                  @db.VarChar(3)
+  defaultLanguage String                  @map("default_language") @db.Text
+  lifecycleStatus BusinessLifecycleStatus @map("lifecycle_status")
+  createdAt       DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("businesses")
+}
+
 model User {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email        String   @unique(map: "users_email_unique") @db.Text
