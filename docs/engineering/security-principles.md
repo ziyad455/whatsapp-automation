@@ -12,6 +12,8 @@
 
 Authentication identifies the user; BusinessUser membership authorizes tenant access. Sensitive actions also require an appropriate role. UI visibility is not enforcement.
 
+Dashboard authentication uses Better Auth server-side sessions and HttpOnly, host-only cookies. The server accepts credential/session requests only from the configured dashboard origin, enables credentialed CORS for that exact origin, and requires HTTPS origins except for loopback development. Public sign-up is disabled. React never reads the session token, and protected UI routes do not replace server-side authentication or membership checks.
+
 WhatsApp webhook authenticity and phoneNumberId mapping form a separate machine-to-machine tenant-resolution path.
 
 ## Validation

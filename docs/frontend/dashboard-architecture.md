@@ -49,7 +49,7 @@ Operational screens must distinguish loading, empty, stale, failed, attention-re
 
 ## Current application shell
 
-React Router owns client-side navigation. `/login` and `/dashboard` are placeholder pages, `/` redirects to `/login`, and unknown paths render a not-found page. Authentication guards and business layouts are intentionally deferred until their owning sprints.
+React Router owns client-side navigation. `/login` uses the Better Auth React client for email/password sign-in, `/dashboard` is session-guarded and supports sign-out, `/` redirects to `/login`, and unknown paths render a not-found page. Session cookies remain HttpOnly and are never copied into React state or browser storage. The route guard improves navigation and loading behavior; the server remains the authorization boundary. Business selection and tenant layouts remain deferred until their owning sprints.
 
 ## Open Questions
 

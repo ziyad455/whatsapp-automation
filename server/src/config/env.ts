@@ -11,6 +11,22 @@ const optionalEnvironmentVariable = z.preprocess(
   z.string().trim().min(1).optional(),
 );
 
+const loopbackHostnames = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+const requiredHttpOrigin = (name: string) =>
+  requiredEnvironmentVariable(name).refine(value => {
+    try {
+      const url = new URL(value);
+      const hasSafeProtocol =
+        url.protocol === 'https:' ||
+        (url.protocol === 'http:' && loopbackHostnames.has(url.hostname));
+
+      return hasSafeProtocol && url.origin === value;
+    } catch {
+      return false;
+    }
+  }, `${name} must be an HTTPS origin without a path, or an HTTP loopback origin for local development`);
+
 const serverEnvironmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.preprocess(
@@ -22,6 +38,12 @@ const serverEnvironmentSchema = z.object({
     'DATABASE_URL must be a PostgreSQL connection URL',
   ),
   GOOGLE_GENERATIVE_AI_API_KEY: requiredEnvironmentVariable('GOOGLE_GENERATIVE_AI_API_KEY'),
+  BETTER_AUTH_SECRET: requiredEnvironmentVariable('BETTER_AUTH_SECRET').refine(
+    value => value.length >= 32,
+    'BETTER_AUTH_SECRET must contain at least 32 characters',
+  ),
+  BETTER_AUTH_URL: requiredHttpOrigin('BETTER_AUTH_URL'),
+  DASHBOARD_URL: requiredHttpOrigin('DASHBOARD_URL'),
   MASTRA_OBSERVABILITY_DATABASE_PATH: optionalEnvironmentVariable,
   TURSO_DATABASE_URL: optionalEnvironmentVariable,
   TURSO_AUTH_TOKEN: optionalEnvironmentVariable,
