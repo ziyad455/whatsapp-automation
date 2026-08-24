@@ -6,6 +6,7 @@
   "private": true,
   "scripts": {
     "dev": "mastra dev",
+    "typecheck": "tsc --noEmit --pretty false",
     "build": "mastra build",
     "start": "mastra start"
   },
