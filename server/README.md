@@ -43,7 +43,20 @@ The local filesystem tools stay inside the project-level `workspace/` directory.
 
 ## Storage
 
-The default `file:./mastra.db` database stores agent memory, tasks, and schedules locally. To use Turso, set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` in `.env`.
+Application/domain data uses PostgreSQL through the centralized Drizzle client in `src/db/client.ts`. Table definitions belong in `src/db/schema.ts`, and generated SQL migrations are committed under `drizzle/`.
+
+From `server/`, use:
+
+```shell
+npm run db:connect
+npm run db:generate -- --name=<migration-name>
+npm run db:check
+npm run db:migrate
+```
+
+`db:connect` verifies the configured database is reachable. `db:generate` creates migrations from schema changes, `db:check` validates migration-history consistency, and `db:migrate` applies only pending migrations. Do not use schema-push commands as a substitute for committed migrations.
+
+Mastra runtime data remains a separate responsibility. The default `file:./mastra.db` database stores agent memory, tasks, and schedules locally. To use Turso, set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` in `.env`.
 
 Recurring schedules continue to use model tokens until you pause them. Ask the agent to pause a schedule with the ID returned by `start_schedule`.
 

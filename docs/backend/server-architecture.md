@@ -48,11 +48,13 @@ TenantContext is created at trusted entry points and passed through tenant-owned
 
 Persistence should make tenant consistency, lifecycle transitions, idempotency, and audit behavior explicit. External calls cannot share a database transaction; designs must account for retries and ambiguous outcomes rather than assuming atomicity across PostgreSQL and providers.
 
+Application PostgreSQL access uses one centralized `node-postgres` pool wrapped by Drizzle ORM. Drizzle schema definitions live in `server/src/db/schema.ts`, generated SQL migrations live in `server/drizzle/`, and Drizzle Kit owns the migration ledger and apply workflow. This application data layer remains conceptually separate from Mastra runtime storage even when both later use the same PostgreSQL deployment.
+
 ## No separate Express layer
 
 Use Mastra custom routes while they satisfy application needs. Add another web framework only for a concrete requirement that cannot be met cleanly, and document the resulting boundary.
 
 ## Open Questions
 
-- The ORM/migration library, authentication mechanism, route schema library, and job-claiming strategy are not fixed by the roadmap.
+- The authentication mechanism, route schema library, and job-claiming strategy are not fixed by the roadmap.
 - Exact module names and folder layout should follow the initialized Mastra project and emerge with implementation.
