@@ -1,5 +1,5 @@
 import type { Middleware } from '@mastra/core/server';
-import { verifyDatabaseConnection } from '../db/client';
+import { verifyDatabaseConnection } from '../db/prisma';
 import { ApplicationError } from './errors';
 import { applicationLogger } from './logger';
 import { initializeRequestContext } from './request-context';

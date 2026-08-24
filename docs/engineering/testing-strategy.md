@@ -10,9 +10,11 @@ Use unit tests for pure validation, state transitions, lead qualification, fresh
 
 Use an isolated test database to verify migrations, repositories, transactions, schema-defined JSONB validation, audit behavior, idempotency, and domain services. Tests should be repeatable from a documented command.
 
-The current TypeScript test runner is Vitest. From the repository root, `npm test` validates the test database, applies pending migrations, and runs unit, database, and live Mastra HTTP integration tests.
+The current TypeScript test runner is Vitest. From the repository root, `npm test` validates the test database, applies committed Prisma migrations with `prisma migrate deploy`, and runs unit, database, and live Mastra HTTP integration tests.
 
 `TEST_DATABASE_URL` must point to a database distinct from `DATABASE_URL` and its database name must end in `_test`. The runner refuses the configured development database before applying migrations. Explicit ephemeral mode is reserved for isolated temporary PostgreSQL environments used by CI or local verification; it does not relax the development-database equality check.
+
+Schema changes use `prisma migrate dev` to create migrations in development. Clean or deployed environments use `prisma migrate deploy`; schema-push commands are not a replacement for committed migration history.
 
 ## Tenant-isolation tests
 

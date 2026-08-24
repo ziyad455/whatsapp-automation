@@ -9,6 +9,9 @@ This document defines domain responsibilities and relationships. It does not pre
 - **BusinessUser** authorizes a user within a business and carries the business role. Initial roles are OWNER and STAFF.
 - **WhatsAppConnection** maps a Meta receiving phone number identity to exactly one business.
 
+User identity uses a unique, canonical lowercase email. Password-based authentication stores only
+the resulting password hash; authentication logic and business membership remain separate concerns.
+
 ## Business configuration
 
 - **BusinessRule** represents an explicit, categorized, active or inactive policy used by application and AI decisions.

@@ -20,6 +20,12 @@ Mastra is the backend runtime for HTTP routes, agents, tools, and workflows. A s
 
 PostgreSQL provides relational integrity for tenant/domain data, durable workflow and message state, migrations, transactions, auditability, and JSONB support. External systems may become authoritative for selected facts through providers later.
 
+## Prisma for application persistence
+
+Prisma Client is the application/domain query layer over PostgreSQL, and Prisma Migrate owns application schema history. Routes, tools, and workflows use application services or repositories rather than scattering Prisma queries across transport and AI code.
+
+Prisma does not provide tenant authorization by itself. TenantContext and repository query scoping remain required for future tenant-owned models. Mastra runtime storage is a separate concern even if it later shares the PostgreSQL deployment.
+
 ## Typed platform data plus schema-defined JSONB
 
 Stable cross-business concepts use typed relational models. Business-specific catalog attributes use JSONB only after validation against BusinessFieldDefinition. This avoids a table/module per vertical without turning the entire domain into unstructured documents.

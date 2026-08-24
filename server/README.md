@@ -49,18 +49,23 @@ The local filesystem tools stay inside the project-level `workspace/` directory.
 
 ## Storage
 
-Application/domain data uses PostgreSQL through the centralized Drizzle client in `src/db/client.ts`. Table definitions belong in `src/db/schema.ts`, and generated SQL migrations are committed under `drizzle/`.
+Application/domain data uses PostgreSQL through the centralized Prisma Client in `src/db/prisma.ts`. The Prisma schema lives in `prisma/schema.prisma`, and Prisma Migrate history is committed under `prisma/migrations/`.
 
 From `server/`, use:
 
 ```shell
 npm run db:connect
-npm run db:generate -- --name=<migration-name>
-npm run db:check
+npm run db:generate
+npm run db:validate
+npm run db:migrate:dev -- --name <migration-name>
 npm run db:migrate
+npm run db:status
+npm run db:studio
 ```
 
-`db:connect` verifies the configured database is reachable. `db:generate` creates migrations from schema changes, `db:check` validates migration-history consistency, and `db:migrate` applies only pending migrations. Do not use schema-push commands as a substitute for committed migrations.
+`db:connect` verifies the configured database is reachable. `db:generate` regenerates Prisma Client, `db:validate` validates the Prisma schema, `db:migrate:dev` creates and applies development migrations, and `db:migrate` applies committed pending migrations. `db:status` reports migration state and `db:studio` starts Prisma Studio for local inspection. Do not use schema-push commands as a substitute for committed migrations.
+
+Prisma owns application migrations and queries. Mastra runtime storage remains a separate responsibility, and future tenant isolation must still be enforced through TenantContext-aware services and repository queries.
 
 Mastra runtime data remains a separate responsibility. The default `file:./mastra.db` database stores agent memory, tasks, and schedules locally. To use Turso, set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` in `.env`.
 
