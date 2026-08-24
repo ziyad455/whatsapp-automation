@@ -10,6 +10,8 @@
 
 Tenant-owned repository APIs bind a trusted TenantContext and do not accept raw business ownership fields. Reads, updates, and deletes scope by record ID plus `tenant.businessId`; creates set business ownership from the context and ignore caller-controlled ownership. Raw Prisma access is reserved for explicit infrastructure/system boundaries, including the BusinessUser lookup required to construct TenantContext.
 
+Cross-tenant regression tests are a mandatory security gate for every tenant-owned resource. A denial assertion must also prove that the foreign record was not returned, changed, deleted, or created through ownership spoofing.
+
 ## Authentication and authorization
 
 Authentication identifies the user; BusinessUser membership authorizes tenant access. Sensitive actions also require an appropriate role. UI visibility is not enforcement.
