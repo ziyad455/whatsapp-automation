@@ -2,6 +2,13 @@
 
 Only project-specific conventions that protect the architecture belong here. Follow existing formatter and lint configuration for cosmetic style.
 
+## Branch naming
+
+- `main` is the primary branch.
+- Use `feature/<short-name>` for new features and improvements.
+- Use `fix/<short-name>` for bug fixes.
+- Keep `<short-name>` concise, lowercase, and hyphen-separated.
+
 ## Type and boundary safety
 
 - Use strict TypeScript.

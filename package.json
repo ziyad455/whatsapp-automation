@@ -1,0 +1,16 @@
+{
+  "name": "whatsapp-automation",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently --kill-others --names dashboard,server \"npm run dev:dashboard\" \"npm run dev:server\"",
+    "dev:dashboard": "npm run dev --prefix dashboard",
+    "dev:server": "npm run dev --prefix server"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}
