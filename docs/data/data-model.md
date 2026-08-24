@@ -9,6 +9,8 @@ This document defines domain responsibilities and relationships. It does not pre
 - **BusinessUser** authorizes a user within a business and carries the business role. Initial roles are OWNER and STAFF.
 - **WhatsAppConnection** maps a Meta receiving phone number identity to exactly one business.
 
+Business category is an extensible uppercase key such as `CAR_RENTAL`, not a closed database enum. The default language is a normalized lowercase language tag so future languages do not require schema changes. Business lifecycle is distinct from billing state and uses the explicit `ACTIVE`, `INACTIVE`, and `SUSPENDED` states. Creation requires timezone, currency, language, and lifecycle explicitly; the persistence model does not assume Morocco-specific defaults.
+
 User identity uses a unique, canonical lowercase email. Password-based authentication stores only
 the resulting password hash; authentication logic and business membership remain separate concerns.
 
