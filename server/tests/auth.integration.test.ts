@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createAuth } from '../src/auth/auth';
+import { createBusiness } from '../src/businesses/business.repository';
 import { closeDatabaseConnection, prisma } from '../src/db/prisma';
+import { createMembership } from '../src/memberships/business-user.repository';
 import { assertIsolatedTestDatabase } from './helpers/assert-test-database';
 import { startMastraServer } from './helpers/mastra-server';
 
@@ -13,6 +15,7 @@ const email = 'auth-owner@example.test';
 
 let server: Awaited<ReturnType<typeof startMastraServer>>;
 let userId: string;
+let businessId: string;
 let sessionCookieName: string;
 
 const authRequest = (path: string, init?: RequestInit) =>
@@ -54,6 +57,16 @@ describe('Better Auth HTTP integration', () => {
     });
 
     userId = result.user.id;
+    const business = await createBusiness({
+      name: 'Auth Test Business',
+      category: 'CAR_RENTAL',
+      timezone: 'Africa/Casablanca',
+      currency: 'MAD',
+      defaultLanguage: 'fr',
+      lifecycleStatus: 'ACTIVE',
+    });
+    businessId = business.id;
+    await createMembership({ userId, businessId, role: 'OWNER' });
     server = await startMastraServer({
       databaseUrl: process.env.TEST_DATABASE_URL!,
       port: 4213,
@@ -66,6 +79,7 @@ describe('Better Auth HTTP integration', () => {
     await prisma.session.deleteMany();
     await prisma.account.deleteMany();
     await prisma.user.deleteMany();
+    await prisma.business.deleteMany();
     await closeDatabaseConnection();
   });
 
@@ -100,7 +114,7 @@ describe('Better Auth HTTP integration', () => {
     const setCookie = response.headers.getSetCookie().join('; ');
     sessionCookieName = cookie.split('=', 1)[0];
     const authenticatedResponse = await fetch(`${server.baseUrl}/account`, {
-      headers: { cookie },
+      headers: { cookie, 'x-business-id': businessId },
     });
     const sessionResponse = await authRequest('/get-session', {
       headers: { cookie },
@@ -112,7 +126,7 @@ describe('Better Auth HTTP integration', () => {
       headers: { cookie },
     });
     const signedOutResponse = await fetch(`${server.baseUrl}/account`, {
-      headers: { cookie },
+      headers: { cookie, 'x-business-id': businessId },
     });
 
     expect(anonymousResponse.status).toBe(401);
@@ -141,7 +155,7 @@ describe('Better Auth HTTP integration', () => {
   it('rejects an invalid session token', async () => {
     const invalidCookie = `${sessionCookieName}=invalid-session-token`;
     const invalidResponse = await fetch(`${server.baseUrl}/account`, {
-      headers: { cookie: invalidCookie },
+      headers: { cookie: invalidCookie, 'x-business-id': businessId },
     });
 
     expect(invalidResponse.status).toBe(401);
@@ -157,7 +171,7 @@ describe('Better Auth HTTP integration', () => {
     });
 
     const expiredResponse = await fetch(`${server.baseUrl}/account`, {
-      headers: { cookie },
+      headers: { cookie, 'x-business-id': businessId },
     });
 
     expect(response.status).toBe(200);

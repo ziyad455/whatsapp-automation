@@ -1,11 +1,13 @@
 export type ApplicationErrorCode =
   | 'BAD_REQUEST'
   | 'UNAUTHORIZED'
+  | 'TENANT_SELECTION_REQUIRED'
+  | 'FORBIDDEN'
   | 'NOT_FOUND'
   | 'DEPENDENCY_UNAVAILABLE'
   | 'INTERNAL_SERVER_ERROR';
 
-type ApplicationErrorStatus = 400 | 401 | 404 | 500 | 503;
+type ApplicationErrorStatus = 400 | 401 | 403 | 404 | 500 | 503;
 
 export class ApplicationError extends Error {
   readonly code: ApplicationErrorCode;

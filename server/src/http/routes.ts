@@ -1,6 +1,10 @@
 import { registerApiRoute } from '@mastra/core/server';
 import { mastraAuth } from '../auth/mastra-auth';
-import { requireAuthenticatedUser } from './request-context';
+import {
+  BUSINESS_SELECTOR_HEADER,
+  resolveDashboardTenantContext,
+} from '../tenancy/dashboard-tenant-context';
+import { requireAuthenticatedUser, requireTenantContext } from './request-context';
 
 export const applicationRoutes = [
   registerApiRoute('/auth/api/*', {
@@ -21,13 +25,40 @@ export const applicationRoutes = [
     method: 'GET',
     requiresAuth: true,
     handler: async context => {
-      const user = requireAuthenticatedUser(context.get('requestContext'));
+      const requestContext = context.get('requestContext');
+
+      await resolveDashboardTenantContext(
+        requestContext,
+        context.req.header(BUSINESS_SELECTOR_HEADER),
+      );
+      const user = requireAuthenticatedUser(requestContext);
 
       return context.json({
         user: {
           id: user.id,
           name: user.name,
           email: user.email,
+        },
+      });
+    },
+  }),
+  registerApiRoute('/tenant-context', {
+    method: 'GET',
+    requiresAuth: true,
+    handler: async context => {
+      const requestContext = context.get('requestContext');
+
+      await resolveDashboardTenantContext(
+        requestContext,
+        context.req.header(BUSINESS_SELECTOR_HEADER),
+      );
+
+      const tenant = requireTenantContext(requestContext);
+
+      return context.json({
+        tenant: {
+          businessId: tenant.businessId,
+          role: tenant.role,
         },
       });
     },

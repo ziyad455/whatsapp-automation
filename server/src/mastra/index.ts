@@ -35,7 +35,12 @@ export const mastra = new Mastra({
     cors: {
       origin: env.DASHBOARD_URL,
       allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowHeaders: ['Content-Type', 'Authorization', 'x-request-id'],
+      allowHeaders: [
+        'Content-Type',
+        'Authorization',
+        'x-request-id',
+        'x-business-id',
+      ],
       exposeHeaders: ['x-request-id'],
       credentials: true,
     },

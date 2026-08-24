@@ -11,7 +11,7 @@ This document defines domain responsibilities and relationships. It does not pre
 
 Business category is an extensible uppercase key such as `CAR_RENTAL`, not a closed database enum. The default language is a normalized lowercase language tag so future languages do not require schema changes. Business lifecycle is distinct from billing state and uses the explicit `ACTIVE`, `INACTIVE`, and `SUSPENDED` states. Creation requires timezone, currency, language, and lifecycle explicitly; the persistence model does not assume Morocco-specific defaults.
 
-User identity uses a unique, canonical lowercase email. Better Auth owns the canonical `User`, `Session`, `Account`, and `Verification` persistence models. Password authentication stores only Better Auth's credential hash on the credential `Account`; `User` has no plaintext or password-hash field. `BusinessUser` remains the separate application authorization join, enforces one membership per user/business pair, and carries `OWNER` or `STAFF`.
+User identity uses a unique, canonical lowercase email. Better Auth owns the canonical `User`, `Session`, `Account`, and `Verification` persistence models. Password authentication stores only Better Auth's credential hash on the credential `Account`; `User` has no plaintext or password-hash field. `BusinessUser` remains the separate application authorization join, enforces one membership per user/business pair, and carries `OWNER` or `STAFF`. Dashboard tenant resolution uses that compound membership as the authorization record; it does not add `businessId` to `User` or duplicate memberships in Better Auth Organizations.
 
 ## Business configuration
 

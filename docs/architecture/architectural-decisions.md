@@ -18,6 +18,10 @@ Better Auth owns platform identity, credential hashing, and server-side sessions
 
 Authentication proves identity only. `BusinessUser` membership and role checks authorize access to a `Business`; Better Auth's organization plugin is not part of the application tenancy model.
 
+## Explicit dashboard tenant selection
+
+Tenant-scoped dashboard requests send `x-business-id` as an untrusted selector. After Better Auth establishes identity, the server resolves exactly one `BusinessUser` row through its `(userId, businessId)` unique key and constructs a request-scoped `TenantContext` from database-owned membership data. There is no single-membership fallback, and invalid or unauthorized selections fail closed without business enumeration. Business lifecycle status is intentionally not enforced by the resolver until its action semantics are defined.
+
 ## Mastra custom routes without Express
 
 Mastra is the backend runtime for HTTP routes, agents, tools, and workflows. A second Express application is postponed until a concrete limitation justifies it.

@@ -12,14 +12,18 @@ A relation to a tenant-owned parent must belong to the same business. For exampl
 
 ## TenantContext
 
-TenantContext is the trusted request-scoped authorization boundary. Conceptually it identifies:
+TenantContext is the trusted request-scoped authorization boundary. For authenticated dashboard requests its current TypeScript shape is:
 
-- the resolved businessId;
-- how the tenant was resolved, such as authenticated dashboard membership or a WhatsApp connection;
-- the actor and role when a user is involved;
-- request correlation information where needed.
+    {
+      userId: string;
+      businessId: string;
+      membershipId: string;
+      role: BusinessUserRole;
+    }
 
-The exact TypeScript shape is an implementation decision. The invariant is that protected tenant services and repositories require a resolved context rather than accepting arbitrary business IDs throughout normal application code.
+Mastra stores this object under the typed `tenant` key in its request-scoped `RequestContext`. The request ID remains a separate correlation value. A future WhatsApp resolver will construct a machine-to-machine tenant context from a verified `WhatsAppConnection`; it must not reuse the dashboard membership resolver or accept a sender-selected tenant.
+
+The invariant is that protected tenant services and repositories require a resolved context rather than accepting arbitrary business IDs throughout normal application code.
 
 ## Dashboard resolution
 
@@ -29,9 +33,9 @@ The exact TypeScript shape is an implementation decision. The invariant is that 
 4. Construct TenantContext.
 5. Execute all tenant-owned work through that context.
 
-A route parameter, header, token claim, or UI selection can identify the requested business, but none is authorization without membership validation.
+A dashboard request selects its business with the `x-business-id` header. The header is only a selector: the server takes `userId` from the verified Better Auth session, queries the unique `(userId, businessId)` `BusinessUser` membership, and takes `membershipId` and `role` from that database row. Client-supplied user, membership, role, or request-context values are discarded. Missing selection fails with a clear 400 response; malformed, unknown, and non-member selections share the same 403 response so the endpoint does not reveal whether another business exists.
 
-The authenticated Better Auth user ID is the platform identity used to query `BusinessUser`. A valid session never implies access to every business, and the browser's protected-route guard is navigation UX rather than an authorization boundary. Active-business selection and `TenantContext` construction remain later work.
+The authenticated Better Auth user ID is the platform identity used to query `BusinessUser`. A valid session never implies access to every business, and the browser's protected-route guard is navigation UX rather than an authorization boundary. There is no implicit single-membership fallback: every tenant-scoped dashboard request selects a business explicitly.
 
 ## WhatsApp resolution
 
@@ -55,5 +59,6 @@ Isolation tests must cover direct IDs, nested relations, lists and filters, dyna
 ## Open Questions
 
 - How does a dashboard user with memberships in several businesses select and persist the active membership?
+- Should `INACTIVE` or `SUSPENDED` businesses be rejected during tenant resolution, or should lifecycle checks remain action-specific? Current resolution authorizes membership only until those semantics are defined.
 - Which database constraint strategy will prevent cross-business parent/child relationships while retaining useful direct businessId scoping?
 - Production platform-admin access requires a privileged context distinct from normal tenant access; its exact authorization model is not yet defined.
