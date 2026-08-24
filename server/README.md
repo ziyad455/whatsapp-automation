@@ -16,7 +16,12 @@ This starter provides you with a general-purpose Mastra agent that can research 
 
 ## Get started
 
-Set your `GOOGLE_GENERATIVE_AI_API_KEY` in `.env` or in your environment, then run:
+Copy `.env.example` to `.env`, then provide the required server configuration:
+
+- `DATABASE_URL` — a PostgreSQL connection URL; the local database is `whatsapp_automation`.
+- `GOOGLE_GENERATIVE_AI_API_KEY` — the credential used by the current Google model.
+
+Environment values are validated when the Mastra application loads. Startup stops with a readable error if required configuration is missing or invalid. Then run:
 
 ```shell
 npm run dev
