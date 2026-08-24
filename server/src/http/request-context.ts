@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { BetterAuthUser } from '@mastra/auth-better-auth';
 import type { RequestContext } from '@mastra/core/request-context';
+import { TENANT_CONTEXT_KEY, type TenantContext } from '../tenancy/tenant-context';
 import { ApplicationError } from './errors';
 
 export const REQUEST_ID_KEY = 'request-id' as const;
@@ -9,6 +10,7 @@ export const AUTHENTICATED_USER_KEY = 'user' as const;
 export type ApplicationRequestContext = {
   [REQUEST_ID_KEY]: string;
   [AUTHENTICATED_USER_KEY]?: BetterAuthUser;
+  [TENANT_CONTEXT_KEY]?: TenantContext;
 };
 
 export type AuthenticatedUser = BetterAuthUser['user'];
@@ -33,7 +35,10 @@ export const initializeRequestContext = (
   requestedId?: string,
 ): string => {
   const requestId = resolveRequestId(requestedId);
-  typedRequestContext(requestContext).set(REQUEST_ID_KEY, requestId);
+  const context = typedRequestContext(requestContext);
+
+  context.delete(TENANT_CONTEXT_KEY);
+  context.set(REQUEST_ID_KEY, requestId);
   return requestId;
 };
 
@@ -62,4 +67,25 @@ export const requireAuthenticatedUser = (
   }
 
   return authenticatedUser.user;
+};
+
+export const setTenantContext = (
+  requestContext: RequestContext,
+  tenantContext: TenantContext,
+): void => {
+  typedRequestContext(requestContext).set(TENANT_CONTEXT_KEY, tenantContext);
+};
+
+export const requireTenantContext = (requestContext: RequestContext): TenantContext => {
+  const tenantContext = typedRequestContext(requestContext).get(TENANT_CONTEXT_KEY);
+
+  if (!tenantContext) {
+    throw new ApplicationError({
+      code: 'FORBIDDEN',
+      message: 'An authorized tenant context is required.',
+      status: 403,
+    });
+  }
+
+  return tenantContext;
 };

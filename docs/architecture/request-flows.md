@@ -4,14 +4,15 @@
 
     React request
       -> validate Better Auth server-side cookie session
-      -> resolve and authorize business membership
-      -> construct TenantContext
+      -> read x-business-id as an untrusted selector
+      -> query BusinessUser by verified userId plus selected businessId
+      -> construct TenantContext from the authorized membership
       -> validate route input
       -> tenant-scoped domain service/repository
       -> PostgreSQL
       -> safe response
 
-The requested business must be derived from an authorized membership selection. Supplying an ID is not authorization.
+The requested business must be derived from an authorized membership selection. Supplying an ID is not authorization; userId comes only from the verified session, while role and membershipId come only from PostgreSQL. The dashboard path does not infer a tenant when the selector is absent.
 
 ## WhatsApp inbound request
 
