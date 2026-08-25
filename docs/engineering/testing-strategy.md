@@ -18,7 +18,7 @@ Schema changes use `prisma migrate dev` to create migrations in development. Cle
 
 Current persistence coverage includes Better Auth identity/credential storage and `BusinessUser` role, uniqueness, multi-business, multi-user, foreign-key, and cascade behavior. HTTP integration coverage exercises disabled public sign-up, valid and invalid credentials, cookie/CORS attributes, session lookup, protected request context, logout, and invalid or expired sessions.
 
-Tenant data-access coverage binds repositories to two independent TenantContext fixtures and verifies own-tenant reads, cross-tenant read denial, context-owned creates, and ID-plus-business scoping for updates and deletes.
+Tenant data-access coverage binds repositories to independent TenantContext fixtures and verifies own-tenant reads, cross-tenant read denial, context-owned creates, and ID-plus-business scoping for updates and deletes. Dynamic-data integration coverage uses car-dealer, salon, and gym tenants to prove that one entity table stores different JSONB shapes, all supported field types and options round-trip, tenant-local uniqueness holds, and both repository checks and the composite database foreign key reject cross-tenant type/entity relationships.
 
 ## Tenant-isolation tests
 
@@ -35,7 +35,7 @@ Each tenant-owned model's implementation is incomplete until its tests prove:
 - create/update ownership cannot be redirected with caller-supplied `businessId`;
 - applicable HTTP selectors, forged context values, and concurrent requests cannot replace trusted TenantContext state.
 
-Small helpers under `server/tests/helpers/` may standardize denial and no-side-effect assertions. Future Customer, Conversation, Message, BusinessEntity, Lead, and FollowUp tests extend this pattern only when those models are implemented.
+Small helpers under `server/tests/helpers/` may standardize denial and no-side-effect assertions. Future Customer, Conversation, Message, Lead, and FollowUp tests extend this pattern only when those models are implemented.
 
 ## AI evaluations
 

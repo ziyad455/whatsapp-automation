@@ -23,6 +23,8 @@ Normal application repositories receive a trusted TenantContext and derive `busi
 
 Business profile, hours, policies, entity types, field definitions, and entities describe what is unique to a business. Business-specific catalog attributes use validated JSONB, while their ownership, schema, status, and timestamps remain relational.
 
+BusinessEntityType and BusinessEntity carry direct tenant ownership. BusinessFieldDefinition has no redundant `businessId`; it is owned through BusinessEntityType. The database requires each BusinessEntity's direct business ownership and referenced entity type to agree. Until schema-value validation is introduced, stored JSON compatibility is not equivalent to domain validity.
+
 The dashboard is a management interface for this data, not the data source itself.
 
 ## AI operational data

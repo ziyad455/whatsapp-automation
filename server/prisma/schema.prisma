@@ -24,6 +24,26 @@ enum BusinessUserRole {
   @@map("business_user_role")
 }
 
+enum BusinessFieldType {
+  TEXT
+  LONG_TEXT
+  NUMBER
+  BOOLEAN
+  DATE
+  DATETIME
+  SELECT
+  MULTI_SELECT
+
+  @@map("business_field_type")
+}
+
+enum BusinessEntityStatus {
+  ACTIVE
+  ARCHIVED
+
+  @@map("business_entity_status")
+}
+
 model Business {
   id              String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name            String                  @db.Text
@@ -35,6 +55,8 @@ model Business {
   createdAt       DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   memberships     BusinessUser[]
+  entityTypes     BusinessEntityType[]
+  entities        BusinessEntity[]
 
   @@map("businesses")
 }
@@ -114,4 +136,56 @@ model BusinessUser {
   @@unique([userId, businessId], map: "business_users_user_id_business_id_unique")
   @@index([businessId], map: "business_users_business_id_index")
   @@map("business_users")
+}
+
+model BusinessEntityType {
+  id               String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId       String                    @map("business_id") @db.Uuid
+  key              String                    @db.Text
+  name             String                    @db.Text
+  description      String?                   @db.Text
+  schemaVersion    Int                       @default(1) @map("schema_version")
+  createdAt        DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  business         Business                  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  fieldDefinitions BusinessFieldDefinition[]
+  entities         BusinessEntity[]
+
+  @@unique([businessId, key], map: "business_entity_types_business_id_key_unique")
+  @@unique([businessId, id], map: "business_entity_types_business_id_id_unique")
+  @@map("business_entity_types")
+}
+
+model BusinessFieldDefinition {
+  id           String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entityTypeId String             @map("entity_type_id") @db.Uuid
+  key          String             @db.Text
+  label        String             @db.Text
+  type         BusinessFieldType
+  required     Boolean            @default(false)
+  options      Json?              @db.JsonB
+  displayOrder Int                @map("display_order")
+  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  entityType   BusinessEntityType @relation(fields: [entityTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([entityTypeId, key], map: "business_field_definitions_entity_type_id_key_unique")
+  @@map("business_field_definitions")
+}
+
+model BusinessEntity {
+  id           String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId   String               @map("business_id") @db.Uuid
+  entityTypeId String               @map("entity_type_id") @db.Uuid
+  name         String               @db.Text
+  data         Json                 @db.JsonB
+  status       BusinessEntityStatus @default(ACTIVE)
+  createdAt    DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  business     Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  entityType   BusinessEntityType   @relation(fields: [businessId, entityTypeId], references: [businessId, id], onDelete: Cascade)
+
+  @@index([entityTypeId], map: "business_entities_entity_type_id_index")
+  @@index([businessId, entityTypeId], map: "business_entities_business_id_entity_type_id_index")
+  @@map("business_entities")
 }
