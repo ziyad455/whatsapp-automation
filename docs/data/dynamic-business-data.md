@@ -18,9 +18,9 @@ Dynamic business catalogs use three tenant-owned concepts:
 - **BusinessFieldDefinition** — a field definition with a key, label, type, required flag, options where relevant, and display order.
 - **BusinessEntity** — one actual record with tenant, entity type, display name, status, timestamps, and validated JSONB values.
 
-The initial field types are TEXT, LONG_TEXT, NUMBER, BOOLEAN, DATE, DATETIME, SELECT, and MULTI_SELECT.
+The persisted field types are TEXT, LONG_TEXT, NUMBER, BOOLEAN, DATE, DATETIME, SELECT, and MULTI_SELECT. PostgreSQL enforces this vocabulary with an enum. `options` is SQL `NULL` when no options apply and JSONB when a SELECT or MULTI_SELECT field needs tenant-defined choices.
 
-When this domain is implemented, Prisma `Json` fields map dynamic values to PostgreSQL JSONB. Application validation against BusinessFieldDefinition remains mandatory before persistence; the ORM type does not make arbitrary JSON authoritative or safe.
+Prisma `Json` fields map field options and entity values to PostgreSQL JSONB. The persistence foundation accepts JSON-compatible values; application validation against BusinessFieldDefinition remains mandatory and is introduced by the separate validation-engine task. The ORM type does not make arbitrary JSON authoritative or safe.
 
     strong, versioned schema definitions
       + validation before persistence
@@ -65,7 +65,27 @@ One BusinessEntity value could be:
       "availableDays": ["monday", "wednesday", "saturday"]
     }
 
-Both records use the same platform models and validation engine, but their schemas remain business-specific.
+Both records use the same platform models and will pass through the same validation engine, while their schemas remain business-specific.
+
+## Example: gym membership
+
+An entity type named Membership could define `price` as NUMBER, `durationMonths` as NUMBER, and `includesCoach` as BOOLEAN. A Monthly Premium entity can store:
+
+    {
+      "price": 300,
+      "durationMonths": 1,
+      "includesCoach": false
+    }
+
+Vehicle, service, and membership records all use the same BusinessEntity table; no vertical-specific persistence model is required.
+
+## Persistence and ownership guarantees
+
+Entity-type keys are trimmed, normalized to lowercase, and unique within a business. Field keys are unique within an entity type. BusinessEntity stores a relational tenant, entity type, display name, ACTIVE or ARCHIVED status, timestamps, and its variable attributes in one JSONB `data` column.
+
+Normal access uses a repository bound to TenantContext. Create inputs cannot select `businessId`, and reads and lists always include the bound business. BusinessFieldDefinition inherits ownership from its entity type rather than duplicating `businessId`. BusinessEntity retains direct `businessId` for efficient scoping, while a composite foreign key requires `(businessId, entityTypeId)` to reference an entity type owned by that same business.
+
+Normal catalog retirement uses BusinessEntity's ARCHIVED state; the repository intentionally exposes no delete operation. Physical deletion of a Business or BusinessEntityType is an administrative teardown operation and cascades to its dependent dynamic records so it cannot leave orphaned schemas or entities.
 
 ## Validation and querying
 

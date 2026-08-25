@@ -19,6 +19,8 @@ User identity uses a unique, canonical lowercase email. Better Auth owns the can
 - Opening hours and profile information belong to the business configuration domain.
 - **BusinessEntityType**, **BusinessFieldDefinition**, and **BusinessEntity** represent configurable business catalogs. See [dynamic business data](dynamic-business-data.md).
 
+BusinessEntityType is directly tenant-owned and has a tenant-local key. BusinessFieldDefinition inherits tenant ownership through its entity type. BusinessEntity is directly tenant-scoped and references its type through a same-business composite relationship; its configurable values live in JSONB while identity, ownership, type, lifecycle status, and timestamps stay relational.
+
 ## Customer communication
 
 - **Customer** is a tenant-owned contact. A WhatsApp sender resolves to a customer only after the receiving business is known.
@@ -40,7 +42,7 @@ Messages preserve the interaction history used by the application. They are not 
       -> BusinessUser -> User
       -> business configuration and rules
       -> BusinessEntityType -> BusinessFieldDefinition
-                            -> BusinessEntity
+      -> BusinessEntity ----> BusinessEntityType
       -> WhatsAppConnection
       -> Customer -> Conversation -> Message
                   -> CustomerEvent

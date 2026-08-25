@@ -31,6 +31,8 @@ Normal tenant-owned persistence APIs accept `TenantContext`, bind `tenant.busine
 
 The centralized Prisma Client remains an infrastructure primitive for migrations, maintenance, trusted provisioning, and explicit system repositories. It is not the normal application API for tenant-owned records. `Business` is the tenant root and may be accessed by explicit system/bootstrap operations. `BusinessUser` also has a necessary pre-context exception: dashboard tenant resolution must query `(authenticated userId, selected businessId)` before a `TenantContext` can exist. Post-resolution membership access uses the tenant-bound repository instead.
 
+Dynamic business data follows this boundary through one TenantContext-bound repository. Field-definition ownership is checked through its entity type. BusinessEntity adds database defense in depth: its `(business_id, entity_type_id)` foreign key can reference only an entity type with the same `business_id`, so a raw or buggy write cannot create a cross-business parent relationship.
+
 ## Dashboard resolution
 
 1. Authenticate the user through the Better Auth server-side session.
@@ -68,5 +70,5 @@ Every new tenant-owned model must add regression coverage for own-tenant reads, 
 
 - How does a dashboard user with memberships in several businesses select and persist the active membership?
 - Should `INACTIVE` or `SUSPENDED` businesses be rejected during tenant resolution, or should lifecycle checks remain action-specific? Current resolution authorizes membership only until those semantics are defined.
-- Which database constraint strategy will prevent cross-business parent/child relationships while retaining useful direct businessId scoping?
+- Which later tenant-owned parent/child relationships should adopt composite foreign keys like the implemented BusinessEntity-to-BusinessEntityType constraint, and which should use another database invariant?
 - Production platform-admin access requires a privileged context distinct from normal tenant access; its exact authorization model is not yet defined.
