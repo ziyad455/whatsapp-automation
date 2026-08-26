@@ -3,8 +3,6 @@ import type {
   BusinessEntityStatus,
   BusinessEntityType,
   BusinessFieldDefinition,
-  BusinessFieldType,
-  Prisma,
 } from '../generated/prisma/client';
 import { prisma } from '../db/prisma';
 import type { TenantContext } from '../tenancy/tenant-context';
@@ -13,26 +11,6 @@ export interface CreateBusinessEntityTypeInput {
   key: string;
   name: string;
   description?: string;
-  schemaVersion?: number;
-  businessId?: never;
-}
-
-export interface CreateBusinessFieldDefinitionInput {
-  entityTypeId: string;
-  key: string;
-  label: string;
-  type: BusinessFieldType;
-  required?: boolean;
-  options?: Prisma.InputJsonValue;
-  displayOrder: number;
-  businessId?: never;
-}
-
-export interface CreateBusinessEntityInput {
-  entityTypeId: string;
-  name: string;
-  data: Prisma.InputJsonValue;
-  status?: BusinessEntityStatus;
   businessId?: never;
 }
 
@@ -46,11 +24,7 @@ export interface TenantBusinessDataRepository {
   createEntityType(input: CreateBusinessEntityTypeInput): Promise<BusinessEntityType>;
   findEntityTypeById(entityTypeId: string): Promise<BusinessEntityType | null>;
   listEntityTypes(): Promise<BusinessEntityType[]>;
-  createFieldDefinition(
-    input: CreateBusinessFieldDefinitionInput,
-  ): Promise<BusinessFieldDefinition | null>;
   listFieldDefinitions(entityTypeId: string): Promise<BusinessFieldDefinition[]>;
-  createEntity(input: CreateBusinessEntityInput): Promise<BusinessEntity | null>;
   findEntityById(entityId: string): Promise<BusinessEntity | null>;
   listEntities(input?: ListBusinessEntitiesInput): Promise<BusinessEntity[]>;
 }
@@ -78,7 +52,7 @@ export const createTenantBusinessDataRepository = (
           key: normalizeEntityTypeKey(input.key),
           name: input.name.trim(),
           description: input.description?.trim() || null,
-          schemaVersion: input.schemaVersion ?? 1,
+          schemaVersion: 1,
         },
       }),
     findEntityTypeById: findOwnedEntityType,
@@ -87,25 +61,6 @@ export const createTenantBusinessDataRepository = (
         where: { businessId },
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       }),
-    createFieldDefinition: async input => {
-      const entityType = await findOwnedEntityType(input.entityTypeId);
-
-      if (!entityType) {
-        return null;
-      }
-
-      return prisma.businessFieldDefinition.create({
-        data: {
-          entityTypeId: entityType.id,
-          key: input.key.trim(),
-          label: input.label.trim(),
-          type: input.type,
-          required: input.required ?? false,
-          ...(input.options === undefined ? {} : { options: input.options }),
-          displayOrder: input.displayOrder,
-        },
-      });
-    },
     listFieldDefinitions: entityTypeId =>
       prisma.businessFieldDefinition.findMany({
         where: {
@@ -114,23 +69,6 @@ export const createTenantBusinessDataRepository = (
         },
         orderBy: [{ displayOrder: 'asc' }, { id: 'asc' }],
       }),
-    createEntity: async input => {
-      const entityType = await findOwnedEntityType(input.entityTypeId);
-
-      if (!entityType) {
-        return null;
-      }
-
-      return prisma.businessEntity.create({
-        data: {
-          businessId,
-          entityTypeId: entityType.id,
-          name: input.name.trim(),
-          data: input.data,
-          status: input.status ?? 'ACTIVE',
-        },
-      });
-    },
     findEntityById: entityId =>
       prisma.businessEntity.findFirst({
         where: {

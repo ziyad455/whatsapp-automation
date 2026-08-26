@@ -20,7 +20,7 @@ Dynamic business catalogs use three tenant-owned concepts:
 
 The persisted field types are TEXT, LONG_TEXT, NUMBER, BOOLEAN, DATE, DATETIME, SELECT, and MULTI_SELECT. PostgreSQL enforces this vocabulary with an enum. `options` is SQL `NULL` when no options apply and JSONB when a SELECT or MULTI_SELECT field needs tenant-defined choices.
 
-Prisma `Json` fields map field options and entity values to PostgreSQL JSONB. The persistence foundation accepts JSON-compatible values; application validation against BusinessFieldDefinition remains mandatory and is introduced by the separate validation-engine task. The ORM type does not make arbitrary JSON authoritative or safe.
+Prisma `Json` fields map field options and entity values to PostgreSQL JSONB. Normal entity creation resolves the tenant-owned entity type and its field definitions, validates the complete input, and only then persists it. The low-level entity write is not exposed by the public tenant repository. The ORM type alone does not make arbitrary JSON authoritative or safe.
 
     strong, versioned schema definitions
       + validation before persistence
@@ -83,30 +83,34 @@ Vehicle, service, and membership records all use the same BusinessEntity table; 
 
 Entity-type keys are trimmed, normalized to lowercase, and unique within a business. Field keys are unique within an entity type. BusinessEntity stores a relational tenant, entity type, display name, ACTIVE or ARCHIVED status, timestamps, and its variable attributes in one JSONB `data` column.
 
-Normal access uses a repository bound to TenantContext. Create inputs cannot select `businessId`, and reads and lists always include the bound business. BusinessFieldDefinition inherits ownership from its entity type rather than duplicating `businessId`. BusinessEntity retains direct `businessId` for efficient scoping, while a composite foreign key requires `(businessId, entityTypeId)` to reference an entity type owned by that same business.
+Normal access uses services and a repository bound to TenantContext. Create inputs cannot select `businessId`, and reads and lists always include the bound business. BusinessFieldDefinition inherits ownership from its entity type rather than duplicating `businessId`. BusinessEntity retains direct `businessId` for efficient scoping, while a composite foreign key requires `(businessId, entityTypeId)` to reference an entity type owned by that same business.
 
 Normal catalog retirement uses BusinessEntity's ARCHIVED state; the repository intentionally exposes no delete operation. Physical deletion of a Business or BusinessEntityType is an administrative teardown operation and cascades to its dependent dynamic records so it cannot leave orphaned schemas or entities.
 
 ## Validation and querying
 
-- Validate required fields, supported types, dates, numeric values, and select options before persistence.
-- Reject unknown or malformed values according to the schema policy.
-- Queries may filter by entity type, name/text, active state, and safe simple field predicates.
-- Add only indexes justified by expected query patterns; optimize further using measured production paths.
-- Tool results should expose a small, relevant projection rather than raw JSONB or internal metadata.
+- Validation is strict and does not coerce values. TEXT and LONG_TEXT require strings, NUMBER requires a finite number, BOOLEAN requires a boolean, DATE uses `YYYY-MM-DD`, and DATETIME requires an offset-aware ISO-8601 value.
+- SELECT requires one configured option. MULTI_SELECT requires an array containing only configured values and rejects duplicates.
+- Missing or empty required text fields, unknown fields, malformed values, and disabled fields in new input produce structured field/code/message errors. Optional enabled fields may be omitted. Historical JSON is not rewritten when a field is disabled.
+- Generic queries resolve a normalized entity-type key inside the tenant, search names case-insensitively, default to ACTIVE records, and validate every JSONB filter against enabled field definitions.
+- Equality filters support TEXT, NUMBER, BOOLEAN, DATE, DATETIME, and SELECT. MULTI_SELECT supports one contains-value filter. LONG_TEXT filtering and arbitrary JSON paths or expression trees are intentionally unsupported.
+- Results default to 25 records, allow at most 100, and use a validated offset capped at 10,000. Query values become one parameterized JSONB containment object; field names or values are never interpolated into SQL.
+- The query-shaped relational index covers `(business_id, entity_type_id, status)`. A generic `jsonb_path_ops` GIN index supports the implemented `data @>` containment predicate; no per-vertical or per-field indexes exist.
+- Future tool results should expose a small, relevant projection rather than raw JSONB or internal metadata.
 
 ## Schema evolution
 
-Supported changes include adding fields, renaming labels, changing display order, updating allowed options safely, and disabling fields. Removed catalog records should normally be archived.
+Field keys are immutable machine identities; labels and display order are editable presentation metadata. BusinessFieldDefinition has an `enabled` flag so a field can stop accepting new values while historical JSON remains intact. Adding an optional field, changing a label or order, disabling a field, and adding select options are safe operations.
 
-Destructive field-type changes must not reinterpret or silently corrupt existing JSONB. Schema versioning records the definition version, but migration and compatibility behavior must be chosen explicitly before destructive changes are supported.
+The schema service rejects adding or enabling a required field when existing entities would be invalid. It also rejects removing an option that existing values use and changing a field type while stored entities contain that key. There is no universal key rename, value rewrite, or type-conversion engine in the MVP.
+
+Every successful field addition or field-definition update increments BusinessEntityType `schemaVersion` once. The field change and version increment share one PostgreSQL transaction, while rejected changes leave both schema and version untouched. Initial template schemas start at version 1.
 
 ## Templates and customization
 
-CAR_RENTAL, SALON, and GYM templates provide starter entity types and fields. A template is copied into tenant-owned configuration and remains customizable; it is not a permanent vertical branch in source code.
+CAR_RENTAL, SALON, and GYM templates are declarative TypeScript data that create starter entity types and field definitions owned by the target tenant. Application reads the tenant business category; callers do not choose ownership. If the matching entity-type key already exists, reapplication skips it without modifying or duplicating the tenant's schema. After creation, all fields are ordinary customizable business data and no runtime vertical branch enforces the template.
 
 ## Open Questions
 
 - Does each BusinessEntity record retain the schema version against which its JSONB was last validated?
-- When select options are removed or field types change, are old values grandfathered, migrated, hidden, or rejected until repaired?
-- Which JSONB filter operators and index patterns are supported initially must follow actual query requirements rather than being assumed here.
+- A future cursor-based pagination strategy may replace bounded offsets if catalog size or measured query cost requires it.

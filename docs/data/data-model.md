@@ -19,7 +19,7 @@ User identity uses a unique, canonical lowercase email. Better Auth owns the can
 - Opening hours and profile information belong to the business configuration domain.
 - **BusinessEntityType**, **BusinessFieldDefinition**, and **BusinessEntity** represent configurable business catalogs. See [dynamic business data](dynamic-business-data.md).
 
-BusinessEntityType is directly tenant-owned and has a tenant-local key. BusinessFieldDefinition inherits tenant ownership through its entity type. BusinessEntity is directly tenant-scoped and references its type through a same-business composite relationship; its configurable values live in JSONB while identity, ownership, type, lifecycle status, and timestamps stay relational.
+BusinessEntityType is directly tenant-owned, has a tenant-local key, and versions its schema contract. BusinessFieldDefinition inherits tenant ownership through its entity type and separates immutable `key` identity from editable `label`, ordering, requirement, options, type, and enabled state. BusinessEntity is directly tenant-scoped and references its type through a same-business composite relationship; its validated configurable values live in JSONB while identity, ownership, type, lifecycle status, and timestamps stay relational.
 
 ## Customer communication
 
