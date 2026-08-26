@@ -3,9 +3,13 @@ import { afterAll, beforeEach, describe, expect, expectTypeOf, it } from 'vitest
 import { createAuth } from '../src/auth/auth';
 import {
   createTenantBusinessDataRepository,
-  type CreateBusinessEntityInput,
   type CreateBusinessEntityTypeInput,
 } from '../src/business-data/tenant-business-data.repository';
+import {
+  createTenantBusinessEntityService,
+  type CreateBusinessEntityInput,
+} from '../src/business-data/tenant-business-entity.service';
+import { createTenantBusinessSchemaService } from '../src/business-data/tenant-business-schema.service';
 import { createBusiness } from '../src/businesses/business.repository';
 import { closeDatabaseConnection, prisma } from '../src/db/prisma';
 import type { BusinessFieldType } from '../src/generated/prisma/client';
@@ -113,7 +117,6 @@ describe('tenant-scoped dynamic business data', () => {
     const salonVehicle = await salonRepository.createEntityType({
       key: 'VEHICLE',
       name: 'Promotional Vehicle',
-      schemaVersion: 2,
     });
 
     expect(vehicle).toMatchObject({
@@ -125,7 +128,7 @@ describe('tenant-scoped dynamic business data', () => {
     expect(salonVehicle).toMatchObject({
       businessId: fixtures.salon.businessId,
       key: 'vehicle',
-      schemaVersion: 2,
+      schemaVersion: 1,
     });
     await expect(
       carRepository.createEntityType({ key: 'VEHICLE', name: 'Duplicate Vehicle' }),
@@ -137,13 +140,15 @@ describe('tenant-scoped dynamic business data', () => {
   it('stores ordered field definitions, all supported types, and JSONB options', async () => {
     const carRepository = createTenantBusinessDataRepository(fixtures.carDealer);
     const salonRepository = createTenantBusinessDataRepository(fixtures.salon);
+    const carSchemaService = createTenantBusinessSchemaService(fixtures.carDealer);
+    const salonSchemaService = createTenantBusinessSchemaService(fixtures.salon);
     const [vehicle, service] = await Promise.all([
       carRepository.createEntityType({ key: 'vehicle', name: 'Vehicle' }),
       salonRepository.createEntityType({ key: 'service', name: 'Service' }),
     ]);
 
     for (const [displayOrder, type] of fieldTypes.entries()) {
-      await carRepository.createFieldDefinition({
+      await carSchemaService.addFieldDefinition({
         entityTypeId: vehicle.id,
         key: type.toLowerCase(),
         label: type,
@@ -178,7 +183,7 @@ describe('tenant-scoped dynamic business data', () => {
     expect(fields.find(field => field.type === 'NUMBER')?.options).toBeNull();
 
     await expect(
-      carRepository.createFieldDefinition({
+      carSchemaService.addFieldDefinition({
         entityTypeId: vehicle.id,
         key: 'text',
         label: 'Duplicate text',
@@ -187,7 +192,7 @@ describe('tenant-scoped dynamic business data', () => {
       }),
     ).rejects.toThrow();
     await expect(
-      salonRepository.createFieldDefinition({
+      salonSchemaService.addFieldDefinition({
         entityTypeId: service.id,
         key: 'text',
         label: 'Service name',
@@ -196,7 +201,7 @@ describe('tenant-scoped dynamic business data', () => {
       }),
     ).resolves.toMatchObject({ entityTypeId: service.id, key: 'text' });
     await expect(
-      carRepository.createFieldDefinition({
+      carSchemaService.addFieldDefinition({
         entityTypeId: service.id,
         key: 'crossTenant',
         label: 'Cross tenant',
@@ -211,10 +216,98 @@ describe('tenant-scoped dynamic business data', () => {
     const carRepository = createTenantBusinessDataRepository(fixtures.carDealer);
     const salonRepository = createTenantBusinessDataRepository(fixtures.salon);
     const gymRepository = createTenantBusinessDataRepository(fixtures.gym);
+    const carEntityService = createTenantBusinessEntityService(fixtures.carDealer);
+    const salonEntityService = createTenantBusinessEntityService(fixtures.salon);
+    const gymEntityService = createTenantBusinessEntityService(fixtures.gym);
+    const carSchemaService = createTenantBusinessSchemaService(fixtures.carDealer);
+    const salonSchemaService = createTenantBusinessSchemaService(fixtures.salon);
+    const gymSchemaService = createTenantBusinessSchemaService(fixtures.gym);
     const [vehicleType, serviceType, membershipType] = await Promise.all([
       carRepository.createEntityType({ key: 'vehicle', name: 'Vehicle' }),
       salonRepository.createEntityType({ key: 'service', name: 'Service' }),
       gymRepository.createEntityType({ key: 'membership', name: 'Membership' }),
+    ]);
+    await Promise.all([
+      carSchemaService.addFieldDefinition({
+        entityTypeId: vehicleType.id,
+        key: 'make',
+        label: 'Make',
+        type: 'TEXT',
+        displayOrder: 0,
+      }),
+      carSchemaService.addFieldDefinition({
+        entityTypeId: vehicleType.id,
+        key: 'model',
+        label: 'Model',
+        type: 'TEXT',
+        displayOrder: 1,
+      }),
+      carSchemaService.addFieldDefinition({
+        entityTypeId: vehicleType.id,
+        key: 'year',
+        label: 'Year',
+        type: 'NUMBER',
+        displayOrder: 2,
+      }),
+      carSchemaService.addFieldDefinition({
+        entityTypeId: vehicleType.id,
+        key: 'available',
+        label: 'Available',
+        type: 'BOOLEAN',
+        displayOrder: 3,
+      }),
+      carSchemaService.addFieldDefinition({
+        entityTypeId: vehicleType.id,
+        key: 'features',
+        label: 'Features',
+        type: 'MULTI_SELECT',
+        options: ['navigation', 'air-conditioning'],
+        displayOrder: 4,
+      }),
+      salonSchemaService.addFieldDefinition({
+        entityTypeId: serviceType.id,
+        key: 'durationMinutes',
+        label: 'Duration',
+        type: 'NUMBER',
+        displayOrder: 0,
+      }),
+      salonSchemaService.addFieldDefinition({
+        entityTypeId: serviceType.id,
+        key: 'price',
+        label: 'Price',
+        type: 'NUMBER',
+        displayOrder: 1,
+      }),
+      salonSchemaService.addFieldDefinition({
+        entityTypeId: serviceType.id,
+        key: 'category',
+        label: 'Category',
+        type: 'SELECT',
+        options: ['hair'],
+        displayOrder: 2,
+      }),
+      gymSchemaService.addFieldDefinition({
+        entityTypeId: membershipType.id,
+        key: 'durationMonths',
+        label: 'Duration',
+        type: 'NUMBER',
+        displayOrder: 0,
+      }),
+      gymSchemaService.addFieldDefinition({
+        entityTypeId: membershipType.id,
+        key: 'price',
+        label: 'Price',
+        type: 'NUMBER',
+        displayOrder: 1,
+      }),
+      gymSchemaService.addFieldDefinition({
+        entityTypeId: membershipType.id,
+        key: 'benefits',
+        label: 'Benefits',
+        type: 'MULTI_SELECT',
+        options: ['gym', 'classes'],
+        displayOrder: 2,
+      }),
     ]);
     const vehicleData = {
       make: 'Renault',
@@ -230,17 +323,17 @@ describe('tenant-scoped dynamic business data', () => {
       benefits: ['gym', 'classes'],
     };
     const [vehicle, service, membership] = await Promise.all([
-      carRepository.createEntity({
+      carEntityService.create({
         entityTypeId: vehicleType.id,
         name: 'Renault Clio 2024',
         data: vehicleData,
       }),
-      salonRepository.createEntity({
+      salonEntityService.create({
         entityTypeId: serviceType.id,
         name: 'Haircut',
         data: serviceData,
       }),
-      gymRepository.createEntity({
+      gymEntityService.create({
         entityTypeId: membershipType.id,
         name: 'Monthly Premium',
         data: membershipData,
@@ -261,11 +354,21 @@ describe('tenant-scoped dynamic business data', () => {
   it('denies cross-tenant entity access and enforces type ownership in PostgreSQL', async () => {
     const carRepository = createTenantBusinessDataRepository(fixtures.carDealer);
     const salonRepository = createTenantBusinessDataRepository(fixtures.salon);
+    const carEntityService = createTenantBusinessEntityService(fixtures.carDealer);
+    const salonEntityService = createTenantBusinessEntityService(fixtures.salon);
+    const salonSchemaService = createTenantBusinessSchemaService(fixtures.salon);
     const salonServiceType = await salonRepository.createEntityType({
       key: 'service',
       name: 'Service',
     });
-    const salonService = await salonRepository.createEntity({
+    await salonSchemaService.addFieldDefinition({
+      entityTypeId: salonServiceType.id,
+      key: 'durationMinutes',
+      label: 'Duration',
+      type: 'NUMBER',
+      displayOrder: 0,
+    });
+    const salonService = await salonEntityService.create({
       entityTypeId: salonServiceType.id,
       name: 'Haircut',
       data: { durationMinutes: 45 },
@@ -276,7 +379,7 @@ describe('tenant-scoped dynamic business data', () => {
       carRepository.listEntities({ entityTypeId: salonServiceType.id }),
     ).resolves.toEqual([]);
     await expect(
-      carRepository.createEntity({
+      carEntityService.create({
         entityTypeId: salonServiceType.id,
         name: 'Cross-tenant entity',
         data: {},
@@ -301,6 +404,8 @@ describe('tenant-scoped dynamic business data', () => {
 
   it('derives ownership from TenantContext even when an untyped caller spoofs it', async () => {
     const carRepository = createTenantBusinessDataRepository(fixtures.carDealer);
+    const carEntityService = createTenantBusinessEntityService(fixtures.carDealer);
+    const carSchemaService = createTenantBusinessSchemaService(fixtures.carDealer);
     const spoofedTypeInput = {
       key: 'vehicle',
       name: 'Vehicle',
@@ -309,6 +414,13 @@ describe('tenant-scoped dynamic business data', () => {
 
     // @ts-expect-error Tenant ownership is deliberately forbidden in create DTOs.
     const vehicleType = await carRepository.createEntityType(spoofedTypeInput);
+    await carSchemaService.addFieldDefinition({
+      entityTypeId: vehicleType.id,
+      key: 'reference',
+      label: 'Reference',
+      type: 'TEXT',
+      displayOrder: 0,
+    });
     const spoofedEntityInput = {
       entityTypeId: vehicleType.id,
       name: 'Tenant-owned vehicle',
@@ -317,7 +429,7 @@ describe('tenant-scoped dynamic business data', () => {
     };
 
     // @ts-expect-error Tenant ownership is deliberately forbidden in create DTOs.
-    const entity = await carRepository.createEntity(spoofedEntityInput);
+    const entity = await carEntityService.create(spoofedEntityInput);
 
     expect(vehicleType.businessId).toBe(fixtures.carDealer.businessId);
     expect(entity?.businessId).toBe(fixtures.carDealer.businessId);

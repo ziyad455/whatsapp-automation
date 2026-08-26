@@ -163,6 +163,7 @@ model BusinessFieldDefinition {
   label        String             @db.Text
   type         BusinessFieldType
   required     Boolean            @default(false)
+  enabled      Boolean            @default(true)
   options      Json?              @db.JsonB
   displayOrder Int                @map("display_order")
   createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -186,6 +187,7 @@ model BusinessEntity {
   entityType   BusinessEntityType   @relation(fields: [businessId, entityTypeId], references: [businessId, id], onDelete: Cascade)
 
   @@index([entityTypeId], map: "business_entities_entity_type_id_index")
-  @@index([businessId, entityTypeId], map: "business_entities_business_id_entity_type_id_index")
+  @@index([businessId, entityTypeId, status], map: "business_entities_business_id_entity_type_id_status_index")
+  @@index([data(ops: JsonbPathOps)], type: Gin, map: "business_entities_data_gin_index")
   @@map("business_entities")
 }

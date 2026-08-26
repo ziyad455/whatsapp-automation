@@ -48,6 +48,8 @@ Stable cross-business concepts use typed relational models. Business-specific ca
 
 The implemented persistence shape is one BusinessEntity table for every vertical. BusinessEntityType and BusinessFieldDefinition keep schemas relational; only field options and entity values use JSONB. BusinessFieldDefinition derives ownership from its parent. BusinessEntity keeps direct tenant ownership for normal scoping, and a composite foreign key to BusinessEntityType enforces that both records belong to the same business. This database constraint supplements, rather than replaces, TenantContext-bound repository checks.
 
+New entity values pass through one generic strict validator before persistence. Generic queries validate field filters, build a parameterized JSONB containment predicate, and use a matching `jsonb_path_ops` GIN index plus tenant/type/status relational indexing. Declarative category templates seed the same generic schema records and are never runtime vertical policy. Field keys are immutable; safe changes are transactional and versioned, while destructive in-use option and type changes are rejected until an explicit migration capability exists.
+
 ## Request-time current-data retrieval
 
 The agent retrieves volatile facts through tenant-bound tools when needed. Long-lived prompt snapshots, chat history, and model memory are not trusted for prices, availability, or other changing facts.

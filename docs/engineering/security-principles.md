@@ -34,6 +34,8 @@ Validate at every external boundary:
 
 Reject malformed or unsupported input predictably. Do not pass raw provider payloads throughout the application.
 
+Dynamic entity validation is centralized and strict: it rejects coercion, unknown or disabled fields, missing required values, invalid canonical dates/datetimes, and values outside select definitions before persistence. Query filters pass through the same field-type rules. The generic query builds a parameterized JSONB containment value rather than interpolating field names, values, or arbitrary JSON paths into SQL.
+
 ## Secrets
 
 Credentials belong in validated environment/secret management, never source, documentation, client bundles, logs, traces, prompts, or tool output. Production secrets need controlled access and rotation.

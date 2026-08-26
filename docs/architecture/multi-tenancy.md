@@ -31,7 +31,7 @@ Normal tenant-owned persistence APIs accept `TenantContext`, bind `tenant.busine
 
 The centralized Prisma Client remains an infrastructure primitive for migrations, maintenance, trusted provisioning, and explicit system repositories. It is not the normal application API for tenant-owned records. `Business` is the tenant root and may be accessed by explicit system/bootstrap operations. `BusinessUser` also has a necessary pre-context exception: dashboard tenant resolution must query `(authenticated userId, selected businessId)` before a `TenantContext` can exist. Post-resolution membership access uses the tenant-bound repository instead.
 
-Dynamic business data follows this boundary through one TenantContext-bound repository. Field-definition ownership is checked through its entity type. BusinessEntity adds database defense in depth: its `(business_id, entity_type_id)` foreign key can reference only an entity type with the same `business_id`, so a raw or buggy write cannot create a cross-business parent relationship.
+Dynamic business data follows this boundary through TenantContext-bound repositories and services. Validation loads definitions only through an owned entity type; queries resolve type keys inside the bound tenant; schema changes scope the field through its parent; and templates derive ownership and category from the tenant business. BusinessEntity adds database defense in depth: its `(business_id, entity_type_id)` foreign key can reference only an entity type with the same `business_id`, so a raw or buggy write cannot create a cross-business parent relationship.
 
 ## Dashboard resolution
 
