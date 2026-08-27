@@ -22,6 +22,8 @@ Tenant data-access coverage binds repositories to independent TenantContext fixt
 
 Sprint 4 integration coverage additionally exercises profile changes, the seven-day local-time schedule and invalid-range rejection, BusinessRule lifecycle, generic dashboard routes, dynamic record create/update/archive behavior, disabled historical-value preservation, tenant-local field customization across car-rental/salon/gym fixtures, and deterministic preview assembly. The dashboard currently has no frontend test runner; until one is introduced for a concrete UI need, strict TypeScript plus manual browser scenarios provide frontend evidence without creating an ad hoc second test architecture.
 
+Sprint 5 coverage exercises server-controlled provenance, secret-safe transactional before/after audit events, tenant-scoped audit reads, field-level STABLE/CHANGING/REAL_TIME classifications, deterministic FRESH/STALE/UNKNOWN decisions, verification without value mutation, archive/restore history, and one DatabaseBusinessDataProvider across car-rental, salon, and gym tenants. Request-time tests reuse the same provider instance and prove that price and availability updates appear on the next call without a cached snapshot.
+
 ## Tenant-isolation tests
 
 Create at least two businesses with overlapping-looking identifiers and data. Attempt cross-tenant reads and writes through routes, repositories, nested relationships, tools, filters, conversations, leads, follow-ups, and analytics.

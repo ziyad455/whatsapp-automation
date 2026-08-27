@@ -226,6 +226,9 @@ export const createTenantBusinessEntityQueryService = (
           "name",
           "data",
           "status",
+          "source",
+          "external_id" AS "externalId",
+          "last_verified_at" AS "lastVerifiedAt",
           "created_at" AS "createdAt",
           "updated_at" AS "updatedAt"
         FROM "business_entities"

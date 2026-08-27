@@ -54,6 +54,16 @@ New entity values pass through one generic strict validator before persistence. 
 
 The agent retrieves volatile facts through tenant-bound tools when needed. Long-lived prompt snapshots, chat history, and model memory are not trusted for prices, availability, or other changing facts.
 
+BusinessDataProvider is the application boundary for those reads. The initial DatabaseBusinessDataProvider is TenantContext-bound and delegates to existing tenant-scoped domain/query services. Connection reuse is desirable; result-snapshot reuse is not. Future authoritative systems can implement the same current-data contract without changing shared AI code or introducing provider federation before it is needed.
+
+## Fact provenance and field-level freshness
+
+Factual profile, opening-hour, rule, and dynamic-entity records carry server-controlled source and verification metadata. Dynamic-field volatility and optional TTL live on BusinessFieldDefinition because one entity may contain stable identity, changing price, and real-time availability. Verification time is independent from value-update time, and no universal TTL is inferred from STABLE, CHANGING, or REAL_TIME.
+
+## Explicit transactional domain audit
+
+AuditEvent is append-only tenant operational data. Auditable services write the domain mutation and a redacted before/after event in one transaction using the actor and business from TenantContext. Explicit service integration preserves action meaning and avoids treating raw Prisma query interception as an authorization-aware domain audit log.
+
 ## Human handoff as server-side application state
 
 Conversation control is explicit state (AI, HUMAN, or PAUSED), persisted and enforced by the server. It is not inferred independently on every turn or controlled only by UI visibility.
