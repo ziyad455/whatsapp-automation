@@ -36,6 +36,8 @@ Reject malformed or unsupported input predictably. Do not pass raw provider payl
 
 Dynamic entity validation is centralized and strict: it rejects coercion, unknown or disabled fields, missing required values, invalid canonical dates/datetimes, and values outside select definitions before persistence. Query filters pass through the same field-type rules. The generic query builds a parameterized JSONB containment value rather than interpolating field names, values, or arbitrary JSON paths into SQL.
 
+Opening-hours input must include each weekday once and pass both service validation and a database check that closed days have no times and open days close later than they open. BusinessRule, field, and entity identifiers are always combined with resolved tenant ownership before mutation. Schema safety failures are returned as structured validation errors rather than bypassed by the dashboard.
+
 ## Secrets
 
 Credentials belong in validated environment/secret management, never source, documentation, client bundles, logs, traces, prompts, or tool output. Production secrets need controlled access and rotation.

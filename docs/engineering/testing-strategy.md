@@ -20,6 +20,8 @@ Current persistence coverage includes Better Auth identity/credential storage an
 
 Tenant data-access coverage binds repositories to independent TenantContext fixtures and verifies own-tenant reads, cross-tenant read denial, context-owned creates, and ID-plus-business scoping for updates and deletes. Dynamic-data unit and integration coverage uses car-dealer, salon, and gym tenants to prove strict validation-before-write, one JSONB entity table, generic validated queries, idempotent customizable templates, atomic schema versions, preservation under safe edits, rejection of destructive edits, useful relational/GIN indexes, and cross-tenant denial at service and database boundaries.
 
+Sprint 4 integration coverage additionally exercises profile changes, the seven-day local-time schedule and invalid-range rejection, BusinessRule lifecycle, generic dashboard routes, dynamic record create/update/archive behavior, disabled historical-value preservation, tenant-local field customization across car-rental/salon/gym fixtures, and deterministic preview assembly. The dashboard currently has no frontend test runner; until one is introduced for a concrete UI need, strict TypeScript plus manual browser scenarios provide frontend evidence without creating an ad hoc second test architecture.
+
 ## Tenant-isolation tests
 
 Create at least two businesses with overlapping-looking identifiers and data. Attempt cross-tenant reads and writes through routes, repositories, nested relationships, tools, filters, conversations, leads, follow-ups, and analytics.

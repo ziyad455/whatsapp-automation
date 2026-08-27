@@ -74,6 +74,7 @@ For example:
 7. Humans can stop AI replies, act manually, and return control deliberately.
 8. External side effects are authorized, validated, idempotent, observable, and safely retryable.
 9. New infrastructure, integrations, and vertical-specific behavior require demonstrated business need.
+10. Business understanding is assembled from authoritative profile, hours, rules, schemas, and entities; no duplicate context blob becomes a source of truth.
 
 ## Keeping documentation current
 

@@ -16,7 +16,8 @@ User identity uses a unique, canonical lowercase email. Better Auth owns the can
 ## Business configuration
 
 - **BusinessRule** represents an explicit, categorized, active or inactive policy used by application and AI decisions.
-- Opening hours and profile information belong to the business configuration domain.
+- **BusinessOpeningHour** stores one relational local-time schedule row per business and weekday. A closed day has no times; an open day has one opening and closing time with closing later than opening.
+- Business profile information belongs to Business and includes optional public description, phone, and address plus currency, timezone, default language, and supported languages.
 - **BusinessEntityType**, **BusinessFieldDefinition**, and **BusinessEntity** represent configurable business catalogs. See [dynamic business data](dynamic-business-data.md).
 
 BusinessEntityType is directly tenant-owned, has a tenant-local key, and versions its schema contract. BusinessFieldDefinition inherits tenant ownership through its entity type and separates immutable `key` identity from editable `label`, ordering, requirement, options, type, and enabled state. BusinessEntity is directly tenant-scoped and references its type through a same-business composite relationship; its validated configurable values live in JSONB while identity, ownership, type, lifecycle status, and timestamps stay relational.
@@ -49,7 +50,7 @@ Messages preserve the interaction history used by the application. They are not 
       -> Lead -> FollowUp
       -> Campaign
 
-Every tenant-owned relation must remain within one business. Direct businessId scoping and parent relationships must agree.
+Every tenant-owned relation must remain within one business. Direct businessId scoping and parent relationships must agree. BusinessRule and BusinessOpeningHour carry direct business ownership and cascade only with business teardown.
 
 ## Operational data
 
@@ -65,5 +66,5 @@ Audit entries, idempotency records, delivery events, agent/tool traces, evaluati
 ## Open Questions
 
 - Conversation mode is defined, but the separate conversation status vocabulary is not yet specified.
-- The persistence models for opening hours and BusinessRule, including precedence and effective dates, are not yet fully defined.
+- Holiday hours, temporary closure, multiple daily shifts, overnight schedules, Ramadan schedules, and rule precedence/effective dates remain intentionally undefined beyond the regular weekly MVP model.
 - The later migration from STAFF to OWNER, MANAGER, and AGENT role vocabulary needs an explicit compatibility plan.

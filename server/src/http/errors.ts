@@ -12,17 +12,20 @@ type ApplicationErrorStatus = 400 | 401 | 403 | 404 | 500 | 503;
 export class ApplicationError extends Error {
   readonly code: ApplicationErrorCode;
   readonly status: ApplicationErrorStatus;
+  readonly details?: unknown;
 
   constructor(options: {
     code: ApplicationErrorCode;
     message: string;
     status: ApplicationErrorStatus;
+    details?: unknown;
     cause?: unknown;
   }) {
     super(options.message, { cause: options.cause });
     this.name = 'ApplicationError';
     this.code = options.code;
     this.status = options.status;
+    this.details = options.details;
   }
 }
 
@@ -35,6 +38,7 @@ export const toErrorResponse = (
     error: {
       code: ApplicationErrorCode;
       message: string;
+      details?: unknown;
     };
     requestId: string;
   };
@@ -46,6 +50,7 @@ export const toErrorResponse = (
         error: {
           code: error.code,
           message: error.message,
+          ...(error.details === undefined ? {} : { details: error.details }),
         },
         requestId,
       },

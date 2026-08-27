@@ -21,7 +21,7 @@ Normal application repositories receive a trusted TenantContext and derive `busi
 
 ## Business-specific configuration and catalog
 
-Business profile, hours, policies, entity types, field definitions, and entities describe what is unique to a business. Business-specific catalog attributes use validated JSONB, while their ownership, schema, status, and timestamps remain relational.
+Business profile, hours, policies, entity types, field definitions, and entities describe what is unique to a business. Profile fields stay on the relational Business tenant root. Regular opening hours and BusinessRule are typed relational tenant-owned records. Business-specific catalog attributes use validated JSONB, while their ownership, schema, status, and timestamps remain relational.
 
 BusinessEntityType and BusinessEntity carry direct tenant ownership. BusinessFieldDefinition has no redundant `businessId`; it is owned through BusinessEntityType. The database requires each BusinessEntity's direct business ownership and referenced entity type to agree. The tenant entity service validates new JSON against enabled field definitions before the only normal write path persists it. Disabled historical values remain PostgreSQL-owned business data and are not silently removed or reinterpreted.
 
@@ -46,6 +46,7 @@ The local system stores the identifiers, normalized state, audit information, an
 - The LLM, prompt, generated summary, and conversation history are never authoritative business databases.
 - Transport payloads are validated and normalized before becoming application input.
 - Analytics derives from domain and operational records; it does not redefine them.
+- The business-understanding preview is assembled on read from profile, weekly hours, active rules, current schemas, and active entity data; it is not persisted as a duplicate `business_context` source.
 
 ## Decision guide
 

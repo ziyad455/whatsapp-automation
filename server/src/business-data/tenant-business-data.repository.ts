@@ -23,6 +23,7 @@ export interface ListBusinessEntitiesInput {
 export interface TenantBusinessDataRepository {
   createEntityType(input: CreateBusinessEntityTypeInput): Promise<BusinessEntityType>;
   findEntityTypeById(entityTypeId: string): Promise<BusinessEntityType | null>;
+  findEntityTypeByKey(key: string): Promise<BusinessEntityType | null>;
   listEntityTypes(): Promise<BusinessEntityType[]>;
   listFieldDefinitions(entityTypeId: string): Promise<BusinessFieldDefinition[]>;
   findEntityById(entityId: string): Promise<BusinessEntity | null>;
@@ -56,6 +57,15 @@ export const createTenantBusinessDataRepository = (
         },
       }),
     findEntityTypeById: findOwnedEntityType,
+    findEntityTypeByKey: key =>
+      prisma.businessEntityType.findUnique({
+        where: {
+          businessId_key: {
+            businessId,
+            key: normalizeEntityTypeKey(key),
+          },
+        },
+      }),
     listEntityTypes: () =>
       prisma.businessEntityType.findMany({
         where: { businessId },

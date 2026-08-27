@@ -1,0 +1,142 @@
+import type {
+  BusinessOpeningHour,
+  BusinessWeekday,
+} from '../generated/prisma/client';
+import { prisma } from '../db/prisma';
+import type { TenantContext } from '../tenancy/tenant-context';
+
+export const BUSINESS_WEEKDAYS = [
+  'MONDAY',
+  'TUESDAY',
+  'WEDNESDAY',
+  'THURSDAY',
+  'FRIDAY',
+  'SATURDAY',
+  'SUNDAY',
+] as const satisfies readonly BusinessWeekday[];
+
+export interface OpeningHourInput {
+  dayOfWeek: BusinessWeekday;
+  isOpen: boolean;
+  opensAt: string | null;
+  closesAt: string | null;
+  businessId?: never;
+}
+
+export type WeeklyOpeningHour = Pick<
+  BusinessOpeningHour,
+  'dayOfWeek' | 'isOpen' | 'opensAt' | 'closesAt'
+>;
+
+export class OpeningHoursValidationError extends Error {
+  readonly dayOfWeek: BusinessWeekday | null;
+
+  constructor(message: string, dayOfWeek: BusinessWeekday | null = null) {
+    super(message);
+    this.name = 'OpeningHoursValidationError';
+    this.dayOfWeek = dayOfWeek;
+  }
+}
+
+export interface TenantOpeningHoursService {
+  getWeek(): Promise<WeeklyOpeningHour[]>;
+  replaceWeek(hours: readonly OpeningHourInput[]): Promise<WeeklyOpeningHour[]>;
+}
+
+const emptyDay = (dayOfWeek: BusinessWeekday): WeeklyOpeningHour => ({
+  dayOfWeek,
+  isOpen: false,
+  opensAt: null,
+  closesAt: null,
+});
+
+const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+const validateWeek = (hours: readonly OpeningHourInput[]): void => {
+  if (hours.length !== BUSINESS_WEEKDAYS.length) {
+    throw new OpeningHoursValidationError('Opening hours must include all seven days.');
+  }
+
+  const providedDays = new Set(hours.map(hour => hour.dayOfWeek));
+
+  if (
+    providedDays.size !== BUSINESS_WEEKDAYS.length ||
+    BUSINESS_WEEKDAYS.some(day => !providedDays.has(day))
+  ) {
+    throw new OpeningHoursValidationError(
+      'Opening hours must include each weekday exactly once.',
+    );
+  }
+
+  for (const hour of hours) {
+    if (!hour.isOpen) {
+      if (hour.opensAt !== null || hour.closesAt !== null) {
+        throw new OpeningHoursValidationError(
+          'Closed days cannot define opening or closing times.',
+          hour.dayOfWeek,
+        );
+      }
+      continue;
+    }
+
+    if (
+      !hour.opensAt ||
+      !hour.closesAt ||
+      !timePattern.test(hour.opensAt) ||
+      !timePattern.test(hour.closesAt) ||
+      hour.opensAt >= hour.closesAt
+    ) {
+      throw new OpeningHoursValidationError(
+        'Closing time must be later than opening time on the same day.',
+        hour.dayOfWeek,
+      );
+    }
+  }
+};
+
+export const createTenantOpeningHoursService = (
+  tenant: TenantContext,
+): TenantOpeningHoursService => {
+  const getWeek = async (): Promise<WeeklyOpeningHour[]> => {
+    const stored = await prisma.businessOpeningHour.findMany({
+      where: { businessId: tenant.businessId },
+    });
+    const byDay = new Map(stored.map(hour => [hour.dayOfWeek, hour]));
+
+    return BUSINESS_WEEKDAYS.map(day => byDay.get(day) ?? emptyDay(day));
+  };
+
+  return {
+    getWeek,
+    replaceWeek: async hours => {
+      validateWeek(hours);
+
+      await prisma.$transaction(
+        hours.map(hour =>
+          prisma.businessOpeningHour.upsert({
+            where: {
+              businessId_dayOfWeek: {
+                businessId: tenant.businessId,
+                dayOfWeek: hour.dayOfWeek,
+              },
+            },
+            create: {
+              businessId: tenant.businessId,
+              dayOfWeek: hour.dayOfWeek,
+              isOpen: hour.isOpen,
+              opensAt: hour.isOpen ? hour.opensAt : null,
+              closesAt: hour.isOpen ? hour.closesAt : null,
+            },
+            update: {
+              isOpen: hour.isOpen,
+              opensAt: hour.isOpen ? hour.opensAt : null,
+              closesAt: hour.isOpen ? hour.closesAt : null,
+            },
+          }),
+        ),
+      );
+
+      return getWeek();
+    },
+  };
+};
