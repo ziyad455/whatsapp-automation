@@ -45,6 +45,8 @@ A dashboard request selects its business with the `x-business-id` header. The he
 
 The authenticated Better Auth user ID is the platform identity used to query `BusinessUser`. A valid session never implies access to every business, and the browser's protected-route guard is navigation UX rather than an authorization boundary. There is no implicit single-membership fallback: every tenant-scoped dashboard request selects a business explicitly.
 
+The authenticated `/businesses` route lists memberships before TenantContext resolution so the user can make that explicit selection. It returns only businesses joined through the verified user's memberships. Remembering a prior browser selection is a client preference, not authorization; the server repeats the membership lookup on every tenant-owned request.
+
 ## WhatsApp resolution
 
 1. Validate the Meta webhook boundary.
@@ -68,7 +70,7 @@ Every new tenant-owned model must add regression coverage for own-tenant reads, 
 
 ## Open Questions
 
-- How does a dashboard user with memberships in several businesses select and persist the active membership?
+- Whether active-business preference should later be stored server-side for cross-device continuity remains open; the current browser-local preference never bypasses request authorization.
 - Should `INACTIVE` or `SUSPENDED` businesses be rejected during tenant resolution, or should lifecycle checks remain action-specific? Current resolution authorizes membership only until those semantics are defined.
 - Which later tenant-owned parent/child relationships should adopt composite foreign keys like the implemented BusinessEntity-to-BusinessEntityType constraint, and which should use another database invariant?
 - Production platform-admin access requires a privileged context distinct from normal tenant access; its exact authorization model is not yet defined.

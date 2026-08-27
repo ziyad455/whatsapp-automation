@@ -5,6 +5,7 @@ import {
   resolveDashboardTenantContext,
 } from '../tenancy/dashboard-tenant-context';
 import { requireAuthenticatedUser, requireTenantContext } from './request-context';
+import { sprintFourRoutes } from './sprint-four-routes';
 
 export const applicationRoutes = [
   registerApiRoute('/auth/api/*', {
@@ -63,4 +64,5 @@ export const applicationRoutes = [
       });
     },
   }),
+  ...sprintFourRoutes,
 ];

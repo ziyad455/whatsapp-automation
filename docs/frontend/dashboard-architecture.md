@@ -43,16 +43,20 @@ BusinessFieldDefinition drives supported inputs, labels, required state, options
 
 Client validation improves usability, but the server revalidates every payload against the current tenant schema.
 
+`DynamicFormRenderer` is the single React control mapping for TEXT, LONG_TEXT, NUMBER, BOOLEAN, DATE, DATETIME, SELECT, and MULTI_SELECT. Create and edit screens load the current entity-type schema before rendering. Disabled fields are omitted from new forms; edit requests omit them while the server preserves historical values. The entity manager and schema editor use generic entity-type keys and never branch on business category.
+
 ## State and error presentation
 
 Operational screens must distinguish loading, empty, stale, failed, attention-required, and unauthorized states. Failures should remain actionable without exposing internal stack traces or secrets.
 
 ## Current application shell
 
-React Router owns client-side navigation. `/login` uses the Better Auth React client for email/password sign-in, `/dashboard` is session-guarded and supports sign-out, `/` redirects to `/login`, and unknown paths render a not-found page. Session cookies remain HttpOnly and are never copied into React state or browser storage. The route guard improves navigation and loading behavior; the server remains the authorization boundary. Business selection and tenant layouts remain deferred until their owning sprints.
+React Router owns client-side navigation. `/login` uses the Better Auth React client for email/password sign-in, `/dashboard` is session-guarded and supports sign-out, `/` redirects to `/login`, and unknown paths render a not-found page. Session cookies remain HttpOnly and are never copied into React state or browser storage. The route guard improves navigation and loading behavior; the server remains the authorization boundary.
+
+The dashboard uses a compact operational layout with profile, opening-hours, rules, dynamic-data, schema-editor, and business-understanding routes. A centralized credentialed API client adds `x-business-id` only after the user explicitly selects an accessible business. The selection may be remembered locally for navigation continuity, but every request is independently authorized by the server. Server error details are mapped to accessible form messages without exposing internal errors.
 
 ## Open Questions
 
-- The active-business selection and persistence experience for multi-business users is not yet defined.
-- Dashboard information architecture, design system, and accessibility conventions beyond standard React practices have not yet been selected.
+- Whether active-business selection should be synchronized across devices is not yet defined; the current preference is browser-local.
+- The current operational visual system is intentionally small and CSS-based; the threshold for extracting a reusable component library is not yet defined.
 - Which AI diagnostics are exposed in the internal playground versus platform-admin tooling needs definition.

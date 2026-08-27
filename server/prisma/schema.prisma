@@ -44,21 +44,69 @@ enum BusinessEntityStatus {
   @@map("business_entity_status")
 }
 
+enum BusinessWeekday {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+
+  @@map("business_weekday")
+}
+
 model Business {
-  id              String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name            String                  @db.Text
-  category        String                  @db.Text
-  timezone        String                  @db.Text
-  currency        String                  @db.VarChar(3)
-  defaultLanguage String                  @map("default_language") @db.Text
-  lifecycleStatus BusinessLifecycleStatus @map("lifecycle_status")
-  createdAt       DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  memberships     BusinessUser[]
-  entityTypes     BusinessEntityType[]
-  entities        BusinessEntity[]
+  id                 String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name               String                  @db.Text
+  category           String                  @db.Text
+  description        String?                 @db.Text
+  phone              String?                 @db.Text
+  address            String?                 @db.Text
+  timezone           String                  @db.Text
+  currency           String                  @db.VarChar(3)
+  defaultLanguage    String                  @map("default_language") @db.Text
+  supportedLanguages String[]                @default([]) @map("supported_languages")
+  lifecycleStatus    BusinessLifecycleStatus @map("lifecycle_status")
+  createdAt          DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  memberships        BusinessUser[]
+  entityTypes        BusinessEntityType[]
+  entities           BusinessEntity[]
+  openingHours       BusinessOpeningHour[]
+  rules              BusinessRule[]
 
   @@map("businesses")
+}
+
+model BusinessOpeningHour {
+  id         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId String          @map("business_id") @db.Uuid
+  dayOfWeek  BusinessWeekday @map("day_of_week")
+  isOpen     Boolean         @default(false) @map("is_open")
+  opensAt    String?         @map("opens_at") @db.VarChar(5)
+  closesAt   String?         @map("closes_at") @db.VarChar(5)
+  createdAt  DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  business   Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, dayOfWeek], map: "business_opening_hours_business_id_day_unique")
+  @@map("business_opening_hours")
+}
+
+model BusinessRule {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId String   @map("business_id") @db.Uuid
+  category   String   @db.Text
+  name       String   @db.Text
+  content    String   @db.Text
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, active], map: "business_rules_business_id_active_index")
+  @@map("business_rules")
 }
 
 model User {

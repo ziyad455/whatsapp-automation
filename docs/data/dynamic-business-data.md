@@ -87,6 +87,8 @@ Normal access uses services and a repository bound to TenantContext. Create inpu
 
 Normal catalog retirement uses BusinessEntity's ARCHIVED state; the repository intentionally exposes no delete operation. Physical deletion of a Business or BusinessEntityType is an administrative teardown operation and cascades to its dependent dynamic records so it cannot leave orphaned schemas or entities.
 
+The dashboard consumes this model through one generic entity-type manager, list/detail flow, schema editor, and `DynamicFormRenderer`. Record updates are revalidated against the current enabled schema, then merge back only values belonging to fields that are now disabled. This preserves historical values without letting the browser resubmit or silently rewrite them.
+
 ## Validation and querying
 
 - Validation is strict and does not coerce values. TEXT and LONG_TEXT require strings, NUMBER requires a finite number, BOOLEAN requires a boolean, DATE uses `YYYY-MM-DD`, and DATETIME requires an offset-aware ISO-8601 value.

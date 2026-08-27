@@ -1,35 +1,53 @@
-import { BrowserRouter, NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, NavLink, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import './App.css'
 import { ProtectedRoute } from './auth/ProtectedRoute'
-import { DashboardPage } from './pages/DashboardPage'
+import { DashboardLayout } from './layout/DashboardLayout'
+import { BusinessProfilePage } from './pages/BusinessProfilePage'
+import { BusinessRulesPage } from './pages/BusinessRulesPage'
+import { BusinessUnderstandingPage } from './pages/BusinessUnderstandingPage'
+import { EntityFormPage } from './pages/EntityFormPage'
+import { EntityListPage } from './pages/EntityListPage'
+import { EntityTypesPage } from './pages/EntityTypesPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
+import { OpeningHoursPage } from './pages/OpeningHoursPage'
+import { SchemaEditorPage } from './pages/SchemaEditorPage'
+
+function PublicLayout() {
+  return (
+    <div className="public-shell">
+      <header className="public-header">
+        <NavLink className="brand" to="/login">WhatsApp Automation</NavLink>
+      </header>
+      <main className="public-main"><Outlet /></main>
+    </div>
+  )
+}
 
 function App() {
   return (
     <BrowserRouter>
-      <div className="app-shell">
-        <header className="app-header">
-          <NavLink className="brand" to="/login">
-            WhatsApp Automation
-          </NavLink>
-          <nav aria-label="Primary navigation">
-            <NavLink to="/login">Login</NavLink>
-            <NavLink to="/dashboard">Dashboard</NavLink>
-          </nav>
-        </header>
-
-        <main className="page-container">
-          <Routes>
+      <Routes>
+        <Route element={<PublicLayout />}>
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<LoginPage />} />
-            <Route element={<ProtectedRoute />}>
-              <Route path="/dashboard" element={<DashboardPage />} />
-            </Route>
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
-        </main>
-      </div>
+        </Route>
+        <Route element={<ProtectedRoute />}>
+          <Route path="/dashboard" element={<DashboardLayout />}>
+            <Route index element={<Navigate to="profile" replace />} />
+            <Route path="profile" element={<BusinessProfilePage />} />
+            <Route path="hours" element={<OpeningHoursPage />} />
+            <Route path="rules" element={<BusinessRulesPage />} />
+            <Route path="data" element={<EntityTypesPage />} />
+            <Route path="data/:entityTypeKey" element={<EntityListPage />} />
+            <Route path="data/:entityTypeKey/new" element={<EntityFormPage />} />
+            <Route path="data/:entityTypeKey/:entityId/edit" element={<EntityFormPage />} />
+            <Route path="schema/:entityTypeKey" element={<SchemaEditorPage />} />
+            <Route path="understanding" element={<BusinessUnderstandingPage />} />
+          </Route>
+        </Route>
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
     </BrowserRouter>
   )
 }
