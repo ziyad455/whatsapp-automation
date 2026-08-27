@@ -49,6 +49,7 @@ const fieldTypeSchema = z.enum([
   'SELECT',
   'MULTI_SELECT',
 ]);
+const freshnessClassSchema = z.enum(['STABLE', 'CHANGING', 'REAL_TIME']);
 const optionSchema = z.union([
   z.string().trim().min(1),
   z.object({ value: z.string().trim().min(1), label: z.string().trim().min(1) }),
@@ -128,6 +129,8 @@ const createFieldSchema = z
     enabled: z.boolean().optional(),
     options: fieldOptionsSchema.optional(),
     displayOrder: z.number().int().min(0).max(1_000),
+    freshnessClass: freshnessClassSchema.optional(),
+    staleAfterSeconds: z.number().int().nonnegative().nullable().optional(),
   })
   .strict();
 const updateFieldSchema = z
@@ -138,6 +141,8 @@ const updateFieldSchema = z
     enabled: z.boolean().optional(),
     options: fieldOptionsSchema.optional(),
     displayOrder: z.number().int().min(0).max(1_000).optional(),
+    freshnessClass: freshnessClassSchema.optional(),
+    staleAfterSeconds: z.number().int().nonnegative().nullable().optional(),
   })
   .strict()
   .refine(value => Object.keys(value).length > 0, {
@@ -571,6 +576,48 @@ export const sprintFourRoutes = [
       );
       const entityId = parseIdentifier(context.req.param('entityId'), 'Entity ID');
       const entity = await createTenantBusinessEntityService(tenant).archive(
+        context.req.param('entityTypeKey'),
+        entityId,
+      );
+
+      if (!entity) {
+        throw notFound('Entity was not found.');
+      }
+
+      return context.json({ entity });
+    },
+  }),
+  registerApiRoute('/dashboard/entities/:entityTypeKey/:entityId/restore', {
+    method: 'POST',
+    requiresAuth: true,
+    handler: async context => {
+      const tenant = await resolveTenant(
+        context.get('requestContext'),
+        context.req.header(BUSINESS_SELECTOR_HEADER),
+      );
+      const entityId = parseIdentifier(context.req.param('entityId'), 'Entity ID');
+      const entity = await createTenantBusinessEntityService(tenant).restore(
+        context.req.param('entityTypeKey'),
+        entityId,
+      );
+
+      if (!entity) {
+        throw notFound('Entity was not found.');
+      }
+
+      return context.json({ entity });
+    },
+  }),
+  registerApiRoute('/dashboard/entities/:entityTypeKey/:entityId/verify', {
+    method: 'POST',
+    requiresAuth: true,
+    handler: async context => {
+      const tenant = await resolveTenant(
+        context.get('requestContext'),
+        context.req.header(BUSINESS_SELECTOR_HEADER),
+      );
+      const entityId = parseIdentifier(context.req.param('entityId'), 'Entity ID');
+      const entity = await createTenantBusinessEntityService(tenant).verify(
         context.req.param('entityTypeKey'),
         entityId,
       );

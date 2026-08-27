@@ -23,6 +23,27 @@ Mutable business information should be traceable through:
 
 Archival preserves historical references when a service or item is no longer offered.
 
+The implemented storage follows the shape of each fact rather than adding provenance to every table:
+
+- Business carries `profileSource`, optional `profileExternalId`, and optional `profileLastVerifiedAt` for the profile fields stored on the tenant root.
+- BusinessOpeningHour and BusinessRule carry record-level source, optional external ID, and verification time because each row is a factual unit.
+- BusinessEntity carries record-level source, optional external ID, and verification time. Its BusinessFieldDefinition records carry field-level `freshnessClass` and optional `staleAfterSeconds`, allowing stable brand, changing price, and real-time availability to coexist in one entity.
+- Structural identity and authorization records, field definitions themselves, and AuditEvent do not receive generic source metadata.
+
+Ordinary dashboard mutation services set source to MANUAL and do not accept source or external ID as browser-controlled fields. External IDs are nullable and not globally unique; provider-specific uniqueness waits for a real integration requirement.
+
+## Verification and staleness
+
+`updatedAt` records when stored business data changed. `lastVerifiedAt` records when a user or trusted system confirmed the fact was current. Verification can advance `lastVerifiedAt` without changing the business value or its `updatedAt` timestamp.
+
+Freshness is calculated centrally from `lastVerifiedAt`, optional `staleAfterSeconds`, and a caller-supplied reference time:
+
+- no verification time returns UNKNOWN, even if `updatedAt` is recent;
+- a verified fact with no expiry returns FRESH;
+- a verified fact with an expiry is FRESH before `lastVerifiedAt + staleAfterSeconds` and STALE at or after that boundary.
+
+STABLE, CHANGING, and REAL_TIME classify volatility; they do not imply universal TTLs. TTL remains explicitly configurable where the business schema has a meaningful policy.
+
 ## Initial and future sources of truth
 
 PostgreSQL is the initial source of truth for data maintained through the dashboard. BusinessDataProvider gives the application and AI a stable access boundary:
@@ -33,6 +54,8 @@ PostgreSQL is the initial source of truth for data maintained through the dashbo
       -> future booking, POS, commerce, CRM, or custom provider when justified
 
 An external provider may later become authoritative for particular facts. Integrations should supplement or replace those facts without redesigning the agent.
+
+The current DatabaseBusinessDataProvider is bound to TenantContext and delegates to existing tenant-scoped domain/query services. Its current-data results include source and FRESH, STALE, or UNKNOWN metadata where relevant. It reuses the centralized Prisma connection but retains no business result snapshot.
 
 ## Request-time retrieval
 
@@ -52,8 +75,9 @@ For an important change, the system should be able to answer:
 - the previous and new values;
 - the source or provider responsible.
 
+AuditEvent is an append-only, tenant-owned domain record. Existing profile, hours, rule, catalog-entity, and safe schema mutations write a redacted before/after JSONB snapshot in the same PostgreSQL transaction as the change. Dashboard actors come from TenantContext; future SYSTEM and INTEGRATION actor kinds do not require a fake user.
+
 ## Open Questions
 
-- Is freshness classified and measured per entity type, record, individual field, or a combination? Mixed JSONB records may contain facts with different volatility.
 - When manual and synchronized values disagree, which provider has precedence and can a manual override expire?
 - Customer-local versus business-local time for freshness and messaging eligibility is not fully specified.

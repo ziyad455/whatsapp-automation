@@ -25,6 +25,8 @@ Business profile, hours, policies, entity types, field definitions, and entities
 
 BusinessEntityType and BusinessEntity carry direct tenant ownership. BusinessFieldDefinition has no redundant `businessId`; it is owned through BusinessEntityType. The database requires each BusinessEntity's direct business ownership and referenced entity type to agree. The tenant entity service validates new JSON against enabled field definitions before the only normal write path persists it. Disabled historical values remain PostgreSQL-owned business data and are not silently removed or reinterpreted.
 
+Provenance belongs to authoritative factual records, not structural models indiscriminately. Business profile, opening-hour, rule, and entity mutations set server-controlled MANUAL provenance. Dynamic field definitions own volatility/TTL policy while BusinessEntity owns the source and verification time of its submitted record values. AuditEvent is operational evidence about a change and does not receive provenance metadata itself.
+
 The dashboard is a management interface for this data, not the data source itself.
 
 ## AI operational data
@@ -47,6 +49,7 @@ The local system stores the identifiers, normalized state, audit information, an
 - Transport payloads are validated and normalized before becoming application input.
 - Analytics derives from domain and operational records; it does not redefine them.
 - The business-understanding preview is assembled on read from profile, weekly hours, active rules, current schemas, and active entity data; it is not persisted as a duplicate `business_context` source.
+- Current application and future AI reads cross the tenant-bound BusinessDataProvider boundary. The database implementation delegates to existing services and queries PostgreSQL on each call; it does not retain authoritative mutable snapshots.
 
 ## Decision guide
 

@@ -1,4 +1,9 @@
-import type { BusinessFieldType, Prisma } from '../generated/prisma/client';
+import type {
+  BusinessFieldType,
+  FreshnessClass,
+  Prisma,
+} from '../generated/prisma/client';
+import { appendTenantAuditEvent } from '../audit/tenant-audit.service';
 import { prisma } from '../db/prisma';
 import type { TenantContext } from '../tenancy/tenant-context';
 
@@ -9,6 +14,7 @@ interface BusinessFieldTemplate {
   label: string;
   type: BusinessFieldType;
   required: boolean;
+  freshnessClass: FreshnessClass;
   options?: readonly string[];
 }
 
@@ -33,13 +39,26 @@ export const BUSINESS_TYPE_TEMPLATES = {
         name: 'Vehicles',
         description: 'Vehicles available through this business',
         fields: [
-          { key: 'brand', label: 'Brand', type: 'TEXT', required: true },
-          { key: 'model', label: 'Model', type: 'TEXT', required: true },
+          {
+            key: 'brand',
+            label: 'Brand',
+            type: 'TEXT',
+            required: true,
+            freshnessClass: 'STABLE',
+          },
+          {
+            key: 'model',
+            label: 'Model',
+            type: 'TEXT',
+            required: true,
+            freshnessClass: 'STABLE',
+          },
           {
             key: 'transmission',
             label: 'Transmission',
             type: 'SELECT',
             required: false,
+            freshnessClass: 'STABLE',
             options: ['manual', 'automatic'],
           },
           {
@@ -47,12 +66,14 @@ export const BUSINESS_TYPE_TEMPLATES = {
             label: 'Price per day',
             type: 'NUMBER',
             required: true,
+            freshnessClass: 'CHANGING',
           },
           {
             key: 'available',
             label: 'Available',
             type: 'BOOLEAN',
             required: true,
+            freshnessClass: 'REAL_TIME',
           },
         ],
       },
@@ -66,18 +87,26 @@ export const BUSINESS_TYPE_TEMPLATES = {
         name: 'Services',
         description: 'Services offered by this business',
         fields: [
-          { key: 'price', label: 'Price', type: 'NUMBER', required: true },
+          {
+            key: 'price',
+            label: 'Price',
+            type: 'NUMBER',
+            required: true,
+            freshnessClass: 'CHANGING',
+          },
           {
             key: 'durationMinutes',
             label: 'Duration in minutes',
             type: 'NUMBER',
             required: false,
+            freshnessClass: 'STABLE',
           },
           {
             key: 'gender',
             label: 'Gender',
             type: 'SELECT',
             required: false,
+            freshnessClass: 'STABLE',
             options: ['men', 'women', 'unisex'],
           },
           {
@@ -85,6 +114,7 @@ export const BUSINESS_TYPE_TEMPLATES = {
             label: 'Available',
             type: 'BOOLEAN',
             required: false,
+            freshnessClass: 'REAL_TIME',
           },
         ],
       },
@@ -98,18 +128,26 @@ export const BUSINESS_TYPE_TEMPLATES = {
         name: 'Memberships',
         description: 'Membership plans offered by this business',
         fields: [
-          { key: 'price', label: 'Price', type: 'NUMBER', required: true },
+          {
+            key: 'price',
+            label: 'Price',
+            type: 'NUMBER',
+            required: true,
+            freshnessClass: 'CHANGING',
+          },
           {
             key: 'durationMonths',
             label: 'Duration in months',
             type: 'NUMBER',
             required: true,
+            freshnessClass: 'STABLE',
           },
           {
             key: 'includesCoach',
             label: 'Includes coach',
             type: 'BOOLEAN',
             required: false,
+            freshnessClass: 'STABLE',
           },
         ],
       },
@@ -176,7 +214,7 @@ export const applyBusinessTemplate = async (
         continue;
       }
 
-      await transaction.businessEntityType.upsert({
+      const createdEntityType = await transaction.businessEntityType.upsert({
         where: {
           businessId_key: {
             businessId: tenant.businessId,
@@ -200,6 +238,7 @@ export const applyBusinessTemplate = async (
                 type: field.type,
                 required: field.required,
                 enabled: true,
+                freshnessClass: field.freshnessClass,
                 options:
                   options === undefined
                     ? undefined
@@ -209,6 +248,19 @@ export const applyBusinessTemplate = async (
             }),
           },
         },
+        include: {
+          fieldDefinitions: {
+            orderBy: [{ displayOrder: 'asc' }, { id: 'asc' }],
+          },
+        },
+      });
+
+      await appendTenantAuditEvent(transaction, tenant, {
+        targetType: 'BUSINESS_ENTITY_TYPE',
+        targetId: createdEntityType.id,
+        action: 'SCHEMA_CHANGE',
+        before: null,
+        after: createdEntityType,
       });
       createdEntityTypeKeys.push(entityType.key);
     }

@@ -44,6 +44,54 @@ enum BusinessEntityStatus {
   @@map("business_entity_status")
 }
 
+enum DataSource {
+  MANUAL
+  IMPORT
+  API
+  SYNC
+  SYSTEM
+
+  @@map("data_source")
+}
+
+enum FreshnessClass {
+  STABLE
+  CHANGING
+  REAL_TIME
+
+  @@map("freshness_class")
+}
+
+enum AuditActorKind {
+  USER
+  SYSTEM
+  INTEGRATION
+
+  @@map("audit_actor_kind")
+}
+
+enum AuditTargetType {
+  BUSINESS_PROFILE
+  OPENING_HOURS
+  BUSINESS_RULE
+  BUSINESS_ENTITY_TYPE
+  BUSINESS_FIELD_DEFINITION
+  BUSINESS_ENTITY
+
+  @@map("audit_target_type")
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  ARCHIVE
+  RESTORE
+  SCHEMA_CHANGE
+  VERIFY
+
+  @@map("audit_action")
+}
+
 enum BusinessWeekday {
   MONDAY
   TUESDAY
@@ -57,53 +105,69 @@ enum BusinessWeekday {
 }
 
 model Business {
-  id                 String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name               String                  @db.Text
-  category           String                  @db.Text
-  description        String?                 @db.Text
-  phone              String?                 @db.Text
-  address            String?                 @db.Text
-  timezone           String                  @db.Text
-  currency           String                  @db.VarChar(3)
-  defaultLanguage    String                  @map("default_language") @db.Text
-  supportedLanguages String[]                @default([]) @map("supported_languages")
-  lifecycleStatus    BusinessLifecycleStatus @map("lifecycle_status")
-  createdAt          DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  memberships        BusinessUser[]
-  entityTypes        BusinessEntityType[]
-  entities           BusinessEntity[]
-  openingHours       BusinessOpeningHour[]
-  rules              BusinessRule[]
+  id                       String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                     String                  @db.Text
+  category                 String                  @db.Text
+  description              String?                 @db.Text
+  phone                    String?                 @db.Text
+  address                  String?                 @db.Text
+  timezone                 String                  @db.Text
+  currency                 String                  @db.VarChar(3)
+  defaultLanguage          String                  @map("default_language") @db.Text
+  supportedLanguages       String[]                @default([]) @map("supported_languages")
+  lifecycleStatus          BusinessLifecycleStatus @map("lifecycle_status")
+  profileSource            DataSource              @default(MANUAL) @map("profile_source")
+  profileExternalId        String?                 @map("profile_external_id") @db.Text
+  profileLastVerifiedAt    DateTime?               @map("profile_last_verified_at") @db.Timestamptz(6)
+  profileFreshnessClass    FreshnessClass          @default(STABLE) @map("profile_freshness_class")
+  profileStaleAfterSeconds Int?                    @map("profile_stale_after_seconds")
+  createdAt                DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  memberships              BusinessUser[]
+  entityTypes              BusinessEntityType[]
+  entities                 BusinessEntity[]
+  openingHours             BusinessOpeningHour[]
+  rules                    BusinessRule[]
+  auditEvents              AuditEvent[]
 
   @@map("businesses")
 }
 
 model BusinessOpeningHour {
-  id         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  businessId String          @map("business_id") @db.Uuid
-  dayOfWeek  BusinessWeekday @map("day_of_week")
-  isOpen     Boolean         @default(false) @map("is_open")
-  opensAt    String?         @map("opens_at") @db.VarChar(5)
-  closesAt   String?         @map("closes_at") @db.VarChar(5)
-  createdAt  DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt  DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  business   Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId        String          @map("business_id") @db.Uuid
+  dayOfWeek         BusinessWeekday @map("day_of_week")
+  isOpen            Boolean         @default(false) @map("is_open")
+  opensAt           String?         @map("opens_at") @db.VarChar(5)
+  closesAt          String?         @map("closes_at") @db.VarChar(5)
+  source            DataSource      @default(MANUAL)
+  externalId        String?         @map("external_id") @db.Text
+  lastVerifiedAt    DateTime?       @map("last_verified_at") @db.Timestamptz(6)
+  freshnessClass    FreshnessClass  @default(CHANGING) @map("freshness_class")
+  staleAfterSeconds Int?            @map("stale_after_seconds")
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  business          Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   @@unique([businessId, dayOfWeek], map: "business_opening_hours_business_id_day_unique")
   @@map("business_opening_hours")
 }
 
 model BusinessRule {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  businessId String   @map("business_id") @db.Uuid
-  category   String   @db.Text
-  name       String   @db.Text
-  content    String   @db.Text
-  active     Boolean  @default(true)
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId        String         @map("business_id") @db.Uuid
+  category          String         @db.Text
+  name              String         @db.Text
+  content           String         @db.Text
+  active            Boolean        @default(true)
+  source            DataSource     @default(MANUAL)
+  externalId        String?        @map("external_id") @db.Text
+  lastVerifiedAt    DateTime?      @map("last_verified_at") @db.Timestamptz(6)
+  freshnessClass    FreshnessClass @default(STABLE) @map("freshness_class")
+  staleAfterSeconds Int?           @map("stale_after_seconds")
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  business          Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   @@index([businessId, active], map: "business_rules_business_id_active_index")
   @@map("business_rules")
@@ -120,6 +184,7 @@ model User {
   sessions      Session[]
   accounts      Account[]
   memberships   BusinessUser[]
+  auditEvents   AuditEvent[]
 
   @@map("users")
 }
@@ -205,37 +270,61 @@ model BusinessEntityType {
 }
 
 model BusinessFieldDefinition {
-  id           String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  entityTypeId String             @map("entity_type_id") @db.Uuid
-  key          String             @db.Text
-  label        String             @db.Text
-  type         BusinessFieldType
-  required     Boolean            @default(false)
-  enabled      Boolean            @default(true)
-  options      Json?              @db.JsonB
-  displayOrder Int                @map("display_order")
-  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  entityType   BusinessEntityType @relation(fields: [entityTypeId], references: [id], onDelete: Cascade)
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entityTypeId      String             @map("entity_type_id") @db.Uuid
+  key               String             @db.Text
+  label             String             @db.Text
+  type              BusinessFieldType
+  required          Boolean            @default(false)
+  enabled           Boolean            @default(true)
+  options           Json?              @db.JsonB
+  displayOrder      Int                @map("display_order")
+  freshnessClass    FreshnessClass     @default(CHANGING) @map("freshness_class")
+  staleAfterSeconds Int?               @map("stale_after_seconds")
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  entityType        BusinessEntityType @relation(fields: [entityTypeId], references: [id], onDelete: Cascade)
 
   @@unique([entityTypeId, key], map: "business_field_definitions_entity_type_id_key_unique")
   @@map("business_field_definitions")
 }
 
 model BusinessEntity {
-  id           String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  businessId   String               @map("business_id") @db.Uuid
-  entityTypeId String               @map("entity_type_id") @db.Uuid
-  name         String               @db.Text
-  data         Json                 @db.JsonB
-  status       BusinessEntityStatus @default(ACTIVE)
-  createdAt    DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  business     Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  entityType   BusinessEntityType   @relation(fields: [businessId, entityTypeId], references: [businessId, id], onDelete: Cascade)
+  id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId     String               @map("business_id") @db.Uuid
+  entityTypeId   String               @map("entity_type_id") @db.Uuid
+  name           String               @db.Text
+  data           Json                 @db.JsonB
+  status         BusinessEntityStatus @default(ACTIVE)
+  source         DataSource           @default(MANUAL)
+  externalId     String?              @map("external_id") @db.Text
+  lastVerifiedAt DateTime?            @map("last_verified_at") @db.Timestamptz(6)
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  business       Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  entityType     BusinessEntityType   @relation(fields: [businessId, entityTypeId], references: [businessId, id], onDelete: Cascade)
 
   @@index([entityTypeId], map: "business_entities_entity_type_id_index")
   @@index([businessId, entityTypeId, status], map: "business_entities_business_id_entity_type_id_status_index")
   @@index([data(ops: JsonbPathOps)], type: Gin, map: "business_entities_data_gin_index")
   @@map("business_entities")
+}
+
+model AuditEvent {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId  String          @map("business_id") @db.Uuid
+  actorUserId String?         @map("actor_user_id") @db.Uuid
+  actorKind   AuditActorKind  @map("actor_kind")
+  targetType  AuditTargetType @map("target_type")
+  targetId    String          @map("target_id") @db.Uuid
+  action      AuditAction
+  before      Json?           @db.JsonB
+  after       Json?           @db.JsonB
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  business    Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  actorUser   User?           @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, createdAt], map: "audit_events_business_id_created_at_index")
+  @@index([businessId, targetType, targetId, createdAt], map: "audit_events_business_target_created_at_index")
+  @@map("audit_events")
 }

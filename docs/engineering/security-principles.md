@@ -42,6 +42,8 @@ Opening-hours input must include each weekday once and pass both service validat
 
 Credentials belong in validated environment/secret management, never source, documentation, client bundles, logs, traces, prompts, or tool output. Production secrets need controlled access and rotation.
 
+Domain audit snapshots pass through recursive secret-key redaction before persistence. Audit services derive business and dashboard actor from TenantContext, expose no normal update/delete operation, and scope history reads by the bound business. Browser payloads cannot choose a factual record's source or external-provider identity.
+
 ## Prompt injection
 
 Customer messages and business-provided catalog text are untrusted data. Prompt instructions alone cannot enforce authorization. Deterministic scoping, allow-listed tools, input validation, output limits, and action boundaries must remain effective when the model follows hostile text.

@@ -3,6 +3,7 @@ import type {
   BusinessEntityStatus,
   Prisma,
 } from '../generated/prisma/client';
+import { appendTenantAuditEvent } from '../audit/tenant-audit.service';
 import { prisma } from '../db/prisma';
 import type { TenantContext } from '../tenancy/tenant-context';
 import {
@@ -31,10 +32,27 @@ export interface TenantBusinessEntityService {
     input: Pick<CreateBusinessEntityInput, 'name' | 'data'>,
   ): Promise<BusinessEntity | null>;
   archive(entityTypeKey: string, entityId: string): Promise<BusinessEntity | null>;
+  restore(entityTypeKey: string, entityId: string): Promise<BusinessEntity | null>;
+  verify(
+    entityTypeKey: string,
+    entityId: string,
+    verifiedAt?: Date,
+  ): Promise<BusinessEntity | null>;
 }
 
 const isRecord = (value: unknown): value is Record<string, Prisma.JsonValue> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const entityAuditSnapshot = (entity: BusinessEntity) => ({
+  id: entity.id,
+  entityTypeId: entity.entityTypeId,
+  name: entity.name,
+  data: entity.data,
+  status: entity.status,
+  source: entity.source,
+  externalId: entity.externalId,
+  lastVerifiedAt: entity.lastVerifiedAt,
+});
 
 export const createTenantBusinessEntityService = (
   tenant: TenantContext,
@@ -71,14 +89,29 @@ export const createTenantBusinessEntityService = (
       throw new DynamicEntityValidationError(validation.errors);
     }
 
-    return prisma.businessEntity.create({
-      data: {
-        businessId,
-        entityTypeId: entityType.id,
-        name: input.name.trim(),
-        data: validation.data,
-        status: input.status ?? 'ACTIVE',
-      },
+    return prisma.$transaction(async transaction => {
+      const entity = await transaction.businessEntity.create({
+        data: {
+          businessId,
+          entityTypeId: entityType.id,
+          name: input.name.trim(),
+          data: validation.data,
+          status: input.status ?? 'ACTIVE',
+          source: 'MANUAL',
+          externalId: null,
+          lastVerifiedAt: new Date(),
+        },
+      });
+
+      await appendTenantAuditEvent(transaction, tenant, {
+        targetType: 'BUSINESS_ENTITY',
+        targetId: entity.id,
+        action: 'CREATE',
+        before: null,
+        after: entityAuditSnapshot(entity),
+      });
+
+      return entity;
     });
   };
 
@@ -96,68 +129,163 @@ export const createTenantBusinessEntityService = (
         },
       }),
     update: async (entityTypeKey, entityId, input) => {
-      const entity = await prisma.businessEntity.findFirst({
-        where: {
-          id: entityId,
-          businessId,
-          entityType: { key: entityTypeKey.trim().toLowerCase() },
-        },
-        include: {
-          entityType: {
-            include: {
-              fieldDefinitions: {
-                orderBy: [{ displayOrder: 'asc' }, { id: 'asc' }],
+      return prisma.$transaction(async transaction => {
+        const entity = await transaction.businessEntity.findFirst({
+          where: {
+            id: entityId,
+            businessId,
+            entityType: { key: entityTypeKey.trim().toLowerCase() },
+          },
+          include: {
+            entityType: {
+              include: {
+                fieldDefinitions: {
+                  orderBy: [{ displayOrder: 'asc' }, { id: 'asc' }],
+                },
               },
             },
           },
-        },
-      });
+        });
 
-      if (!entity) {
-        return null;
-      }
+        if (!entity) {
+          return null;
+        }
 
-      const validation = validateEntityData(entity.entityType.fieldDefinitions, input.data);
+        const validation = validateEntityData(
+          entity.entityType.fieldDefinitions,
+          input.data,
+        );
 
-      if (!validation.success) {
-        throw new DynamicEntityValidationError(validation.errors);
-      }
+        if (!validation.success) {
+          throw new DynamicEntityValidationError(validation.errors);
+        }
 
-      const historicalValues: Record<string, Prisma.JsonValue> = {};
+        const historicalValues: Record<string, Prisma.JsonValue> = {};
 
-      if (isRecord(entity.data)) {
-        for (const field of entity.entityType.fieldDefinitions) {
-          if (!field.enabled && Object.hasOwn(entity.data, field.key)) {
-            historicalValues[field.key] = entity.data[field.key]!;
+        if (isRecord(entity.data)) {
+          for (const field of entity.entityType.fieldDefinitions) {
+            if (!field.enabled && Object.hasOwn(entity.data, field.key)) {
+              historicalValues[field.key] = entity.data[field.key]!;
+            }
           }
         }
-      }
 
-      const result = await prisma.businessEntity.updateMany({
-        where: { id: entity.id, businessId, entityTypeId: entity.entityTypeId },
-        data: {
-          name: input.name.trim(),
-          data: { ...validation.data, ...historicalValues },
-        },
+        const after = await transaction.businessEntity.update({
+          where: { id: entity.id },
+          data: {
+            name: input.name.trim(),
+            data: { ...validation.data, ...historicalValues },
+            source: 'MANUAL',
+            externalId: null,
+            lastVerifiedAt: new Date(),
+          },
+        });
+
+        await appendTenantAuditEvent(transaction, tenant, {
+          targetType: 'BUSINESS_ENTITY',
+          targetId: after.id,
+          action: 'UPDATE',
+          before: entityAuditSnapshot(entity),
+          after: entityAuditSnapshot(after),
+        });
+
+        return after;
       });
-
-      return result.count === 0
-        ? null
-        : prisma.businessEntity.findFirst({ where: { id: entity.id, businessId } });
     },
     archive: async (entityTypeKey, entityId) => {
-      const result = await prisma.businessEntity.updateMany({
-        where: {
-          id: entityId,
-          businessId,
-          entityType: { key: entityTypeKey.trim().toLowerCase() },
-        },
-        data: { status: 'ARCHIVED' },
-      });
+      return prisma.$transaction(async transaction => {
+        const before = await transaction.businessEntity.findFirst({
+          where: {
+            id: entityId,
+            businessId,
+            entityType: { key: entityTypeKey.trim().toLowerCase() },
+          },
+        });
 
-      return result.count === 0
-        ? null
-        : prisma.businessEntity.findFirst({ where: { id: entityId, businessId } });
+        if (!before || before.status === 'ARCHIVED') {
+          return before;
+        }
+
+        const after = await transaction.businessEntity.update({
+          where: { id: before.id },
+          data: { status: 'ARCHIVED' },
+        });
+
+        await appendTenantAuditEvent(transaction, tenant, {
+          targetType: 'BUSINESS_ENTITY',
+          targetId: after.id,
+          action: 'ARCHIVE',
+          before: entityAuditSnapshot(before),
+          after: entityAuditSnapshot(after),
+        });
+
+        return after;
+      });
+    },
+    restore: async (entityTypeKey, entityId) => {
+      return prisma.$transaction(async transaction => {
+        const before = await transaction.businessEntity.findFirst({
+          where: {
+            id: entityId,
+            businessId,
+            entityType: { key: entityTypeKey.trim().toLowerCase() },
+          },
+        });
+
+        if (!before || before.status === 'ACTIVE') {
+          return before;
+        }
+
+        const after = await transaction.businessEntity.update({
+          where: { id: before.id },
+          data: { status: 'ACTIVE' },
+        });
+
+        await appendTenantAuditEvent(transaction, tenant, {
+          targetType: 'BUSINESS_ENTITY',
+          targetId: after.id,
+          action: 'RESTORE',
+          before: entityAuditSnapshot(before),
+          after: entityAuditSnapshot(after),
+        });
+
+        return after;
+      });
+    },
+    verify: async (entityTypeKey, entityId, verifiedAt = new Date()) => {
+      return prisma.$transaction(async transaction => {
+        const before = await transaction.businessEntity.findFirst({
+          where: {
+            id: entityId,
+            businessId,
+            entityType: { key: entityTypeKey.trim().toLowerCase() },
+          },
+        });
+
+        if (!before) {
+          return null;
+        }
+
+        await transaction.$executeRaw`
+          UPDATE "business_entities"
+          SET "last_verified_at" = ${verifiedAt}
+          WHERE "id" = ${before.id}::uuid
+            AND "business_id" = ${businessId}::uuid
+        `;
+        const after = await transaction.businessEntity.findFirstOrThrow({
+          where: { id: before.id, businessId },
+        });
+
+        await appendTenantAuditEvent(transaction, tenant, {
+          targetType: 'BUSINESS_ENTITY',
+          targetId: after.id,
+          action: 'VERIFY',
+          before: { data: before.data, lastVerifiedAt: before.lastVerifiedAt },
+          after: { data: after.data, lastVerifiedAt: after.lastVerifiedAt },
+        });
+
+        return after;
+      });
     },
   };
 };

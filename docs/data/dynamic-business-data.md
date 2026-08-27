@@ -15,8 +15,8 @@ Creating a Vehicle, Haircut, GymMembership, Tour, and supporting backend module 
 Dynamic business catalogs use three tenant-owned concepts:
 
 - **BusinessEntityType** — a collection definition such as vehicle, service, membership, tour, or room. It has a tenant-scoped key, name, description, schema version, and lifecycle timestamps.
-- **BusinessFieldDefinition** — a field definition with a key, label, type, required flag, options where relevant, and display order.
-- **BusinessEntity** — one actual record with tenant, entity type, display name, status, timestamps, and validated JSONB values.
+- **BusinessFieldDefinition** — a field definition with a key, label, type, required flag, options where relevant, display order, freshness class, and optional stale-after duration.
+- **BusinessEntity** — one actual record with tenant, entity type, display name, status, timestamps, source/verification metadata, and validated JSONB values.
 
 The persisted field types are TEXT, LONG_TEXT, NUMBER, BOOLEAN, DATE, DATETIME, SELECT, and MULTI_SELECT. PostgreSQL enforces this vocabulary with an enum. `options` is SQL `NULL` when no options apply and JSONB when a SELECT or MULTI_SELECT field needs tenant-defined choices.
 
@@ -87,6 +87,8 @@ Normal access uses services and a repository bound to TenantContext. Create inpu
 
 Normal catalog retirement uses BusinessEntity's ARCHIVED state; the repository intentionally exposes no delete operation. Physical deletion of a Business or BusinessEntityType is an administrative teardown operation and cascades to its dependent dynamic records so it cannot leave orphaned schemas or entities.
 
+Normal queries and BusinessDataProvider reads return ACTIVE entities by default. Archive and restore are audited status transitions; neither physically removes the entity, so historical conversations and audit targets retain a stable record identity.
+
 The dashboard consumes this model through one generic entity-type manager, list/detail flow, schema editor, and `DynamicFormRenderer`. Record updates are revalidated against the current enabled schema, then merge back only values belonging to fields that are now disabled. This preserves historical values without letting the browser resubmit or silently rewrite them.
 
 ## Validation and querying
@@ -99,6 +101,8 @@ The dashboard consumes this model through one generic entity-type manager, list/
 - Results default to 25 records, allow at most 100, and use a validated offset capped at 10,000. Query values become one parameterized JSONB containment object; field names or values are never interpolated into SQL.
 - The query-shaped relational index covers `(business_id, entity_type_id, status)`. A generic `jsonb_path_ops` GIN index supports the implemented `data @>` containment predicate; no per-vertical or per-field indexes exist.
 - Future tool results should expose a small, relevant projection rather than raw JSONB or internal metadata.
+
+BusinessDataProvider performs that projection for current consumers. It combines each enabled field's definition-level STABLE, CHANGING, or REAL_TIME policy with the entity record's source and verification time, returning the value plus explicit FRESH, STALE, or UNKNOWN state. It does not cache the assembled entity.
 
 ## Schema evolution
 

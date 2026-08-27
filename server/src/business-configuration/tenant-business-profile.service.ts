@@ -1,4 +1,5 @@
 import type { Business } from '../generated/prisma/client';
+import { appendTenantAuditEvent } from '../audit/tenant-audit.service';
 import { prisma } from '../db/prisma';
 import type { TenantContext } from '../tenancy/tenant-context';
 
@@ -29,21 +30,39 @@ export const createTenantBusinessProfileService = (
 ): TenantBusinessProfileService => ({
   get: () => prisma.business.findUnique({ where: { id: tenant.businessId } }),
   update: input =>
-    prisma.business.update({
-      where: { id: tenant.businessId },
-      data: {
-        name: input.name.trim(),
-        description: nullableText(input.description),
-        phone: nullableText(input.phone),
-        address: nullableText(input.address),
-        currency: input.currency.trim().toUpperCase(),
-        defaultLanguage: input.defaultLanguage.trim().toLowerCase(),
-        supportedLanguages: [
-          ...new Set(
-            input.supportedLanguages.map(language => language.trim().toLowerCase()),
-          ),
-        ],
-        timezone: input.timezone.trim(),
-      },
+    prisma.$transaction(async transaction => {
+      const before = await transaction.business.findUniqueOrThrow({
+        where: { id: tenant.businessId },
+      });
+      const after = await transaction.business.update({
+        where: { id: tenant.businessId },
+        data: {
+          name: input.name.trim(),
+          description: nullableText(input.description),
+          phone: nullableText(input.phone),
+          address: nullableText(input.address),
+          currency: input.currency.trim().toUpperCase(),
+          defaultLanguage: input.defaultLanguage.trim().toLowerCase(),
+          supportedLanguages: [
+            ...new Set(
+              input.supportedLanguages.map(language => language.trim().toLowerCase()),
+            ),
+          ],
+          timezone: input.timezone.trim(),
+          profileSource: 'MANUAL',
+          profileExternalId: null,
+          profileLastVerifiedAt: new Date(),
+        },
+      });
+
+      await appendTenantAuditEvent(transaction, tenant, {
+        targetType: 'BUSINESS_PROFILE',
+        targetId: tenant.businessId,
+        action: 'UPDATE',
+        before,
+        after,
+      });
+
+      return after;
     }),
 });

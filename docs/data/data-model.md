@@ -22,6 +22,8 @@ User identity uses a unique, canonical lowercase email. Better Auth owns the can
 
 BusinessEntityType is directly tenant-owned, has a tenant-local key, and versions its schema contract. BusinessFieldDefinition inherits tenant ownership through its entity type and separates immutable `key` identity from editable `label`, ordering, requirement, options, type, and enabled state. BusinessEntity is directly tenant-scoped and references its type through a same-business composite relationship; its validated configurable values live in JSONB while identity, ownership, type, lifecycle status, and timestamps stay relational.
 
+Mutable business facts carry provenance only where the persisted record is an authoritative factual unit. Business profile metadata is named separately on Business; BusinessOpeningHour, BusinessRule, and BusinessEntity carry source, optional external ID, and optional verification time. BusinessRule and opening-hour rows may also carry record-level freshness policy. Dynamic entity volatility and optional TTL are defined per BusinessFieldDefinition so fields in one JSONB record can have different freshness requirements.
+
 ## Customer communication
 
 - **Customer** is a tenant-owned contact. A WhatsApp sender resolves to a customer only after the receiving business is known.
@@ -44,6 +46,7 @@ Messages preserve the interaction history used by the application. They are not 
       -> business configuration and rules
       -> BusinessEntityType -> BusinessFieldDefinition
       -> BusinessEntity ----> BusinessEntityType
+      -> AuditEvent
       -> WhatsAppConnection
       -> Customer -> Conversation -> Message
                   -> CustomerEvent
@@ -55,6 +58,8 @@ Every tenant-owned relation must remain within one business. Direct businessId s
 ## Operational data
 
 Audit entries, idempotency records, delivery events, agent/tool traces, evaluation results, errors, and usage metrics support operation of the domain. They are not substitutes for domain records and should carry only the tenant and sensitive data needed for their purpose.
+
+AuditEvent is the immutable domain audit entry. It carries business ownership, nullable human actor plus USER/SYSTEM/INTEGRATION kind, target type and target ID, a stable action, redacted before/after JSONB, and creation time. Target identity is polymorphic by type and ID rather than a foreign-key column for every audited model.
 
 ## Lifecycle principles
 

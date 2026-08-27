@@ -4,6 +4,7 @@ import type {
   BusinessEntityType,
   BusinessFieldDefinition,
 } from '../generated/prisma/client';
+import { appendTenantAuditEvent } from '../audit/tenant-audit.service';
 import { prisma } from '../db/prisma';
 import type { TenantContext } from '../tenancy/tenant-context';
 
@@ -47,14 +48,26 @@ export const createTenantBusinessDataRepository = (
 
   return {
     createEntityType: input =>
-      prisma.businessEntityType.create({
-        data: {
-          businessId,
-          key: normalizeEntityTypeKey(input.key),
-          name: input.name.trim(),
-          description: input.description?.trim() || null,
-          schemaVersion: 1,
-        },
+      prisma.$transaction(async transaction => {
+        const entityType = await transaction.businessEntityType.create({
+          data: {
+            businessId,
+            key: normalizeEntityTypeKey(input.key),
+            name: input.name.trim(),
+            description: input.description?.trim() || null,
+            schemaVersion: 1,
+          },
+        });
+
+        await appendTenantAuditEvent(transaction, tenant, {
+          targetType: 'BUSINESS_ENTITY_TYPE',
+          targetId: entityType.id,
+          action: 'CREATE',
+          before: null,
+          after: entityType,
+        });
+
+        return entityType;
       }),
     findEntityTypeById: findOwnedEntityType,
     findEntityTypeByKey: key =>
@@ -93,7 +106,7 @@ export const createTenantBusinessDataRepository = (
           ...(input?.entityTypeId === undefined
             ? {}
             : { entityTypeId: input.entityTypeId }),
-          ...(input?.status === undefined ? {} : { status: input.status }),
+          status: input?.status ?? 'ACTIVE',
         },
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       }),

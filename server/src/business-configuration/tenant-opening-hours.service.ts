@@ -2,6 +2,7 @@ import type {
   BusinessOpeningHour,
   BusinessWeekday,
 } from '../generated/prisma/client';
+import { appendTenantAuditEvent } from '../audit/tenant-audit.service';
 import { prisma } from '../db/prisma';
 import type { TenantContext } from '../tenancy/tenant-context';
 
@@ -40,6 +41,7 @@ export class OpeningHoursValidationError extends Error {
 
 export interface TenantOpeningHoursService {
   getWeek(): Promise<WeeklyOpeningHour[]>;
+  getStoredWeek(): Promise<BusinessOpeningHour[]>;
   replaceWeek(hours: readonly OpeningHourInput[]): Promise<WeeklyOpeningHour[]>;
 }
 
@@ -97,10 +99,14 @@ const validateWeek = (hours: readonly OpeningHourInput[]): void => {
 export const createTenantOpeningHoursService = (
   tenant: TenantContext,
 ): TenantOpeningHoursService => {
-  const getWeek = async (): Promise<WeeklyOpeningHour[]> => {
-    const stored = await prisma.businessOpeningHour.findMany({
+  const getStoredWeek = (): Promise<BusinessOpeningHour[]> =>
+    prisma.businessOpeningHour.findMany({
       where: { businessId: tenant.businessId },
+      orderBy: { dayOfWeek: 'asc' },
     });
+
+  const getWeek = async (): Promise<WeeklyOpeningHour[]> => {
+    const stored = await getStoredWeek();
     const byDay = new Map(stored.map(hour => [hour.dayOfWeek, hour]));
 
     return BUSINESS_WEEKDAYS.map(day => byDay.get(day) ?? emptyDay(day));
@@ -108,12 +114,19 @@ export const createTenantOpeningHoursService = (
 
   return {
     getWeek,
+    getStoredWeek,
     replaceWeek: async hours => {
       validateWeek(hours);
 
-      await prisma.$transaction(
-        hours.map(hour =>
-          prisma.businessOpeningHour.upsert({
+      return prisma.$transaction(async transaction => {
+        const before = await transaction.businessOpeningHour.findMany({
+          where: { businessId: tenant.businessId },
+          orderBy: { dayOfWeek: 'asc' },
+        });
+        const verifiedAt = new Date();
+
+        for (const hour of hours) {
+          await transaction.businessOpeningHour.upsert({
             where: {
               businessId_dayOfWeek: {
                 businessId: tenant.businessId,
@@ -126,17 +139,37 @@ export const createTenantOpeningHoursService = (
               isOpen: hour.isOpen,
               opensAt: hour.isOpen ? hour.opensAt : null,
               closesAt: hour.isOpen ? hour.closesAt : null,
+              source: 'MANUAL',
+              externalId: null,
+              lastVerifiedAt: verifiedAt,
             },
             update: {
               isOpen: hour.isOpen,
               opensAt: hour.isOpen ? hour.opensAt : null,
               closesAt: hour.isOpen ? hour.closesAt : null,
+              source: 'MANUAL',
+              externalId: null,
+              lastVerifiedAt: verifiedAt,
             },
-          }),
-        ),
-      );
+          });
+        }
 
-      return getWeek();
+        const after = await transaction.businessOpeningHour.findMany({
+          where: { businessId: tenant.businessId },
+          orderBy: { dayOfWeek: 'asc' },
+        });
+
+        await appendTenantAuditEvent(transaction, tenant, {
+          targetType: 'OPENING_HOURS',
+          targetId: tenant.businessId,
+          action: 'UPDATE',
+          before,
+          after,
+        });
+
+        const byDay = new Map(after.map(hour => [hour.dayOfWeek, hour]));
+        return BUSINESS_WEEKDAYS.map(day => byDay.get(day) ?? emptyDay(day));
+      });
     },
   };
 };

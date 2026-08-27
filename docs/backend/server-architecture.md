@@ -67,6 +67,10 @@ Tenant-bound repository and service factories capture `tenant.businessId`; their
 
 Business configuration lives under `server/src/business-configuration/`. Profile, weekly hours, rules, and the assembled understanding preview remain separate domain sources rather than one copied context blob. Dashboard routes validate transport input with Zod, resolve TenantContext first, and delegate business behavior to these services or the generic business-data services. Expected validation failures return stable field/code/message details.
 
+Current business-data consumers bind `DatabaseBusinessDataProvider` to TenantContext. The provider delegates to those existing services and query paths, returns explicit source/freshness metadata, and performs each read against the current database state. Reusing the centralized Prisma client is required; retaining a long-lived profile, rule, price, availability, or catalog snapshot is prohibited.
+
+Meaningful profile, regular-hours, rule, catalog-entity, and safe schema mutations append an AuditEvent in the same interactive Prisma transaction as the change. The audit helper receives the trusted TenantContext actor and business, applies recursive secret-key redaction, and exposes only append and tenant-scoped query operations. Audit logging remains a domain service, not a global Prisma query hook or general request logger.
+
 Raw Prisma access remains available to explicit infrastructure and system/bootstrap repositories. In particular, `BusinessUser` membership lookup during tenant resolution must accept the authenticated user ID and untrusted business selector before TenantContext exists. This boundary exception must not become a general tenant-data access pattern.
 
 Mastra runtime storage remains conceptually separate from application/domain persistence even when both later use the same PostgreSQL deployment.

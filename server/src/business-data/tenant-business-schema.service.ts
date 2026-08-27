@@ -2,7 +2,9 @@ import {
   Prisma,
   type BusinessFieldDefinition,
   type BusinessFieldType,
+  type FreshnessClass,
 } from '../generated/prisma/client';
+import { appendTenantAuditEvent } from '../audit/tenant-audit.service';
 import { prisma } from '../db/prisma';
 import type { TenantContext } from '../tenancy/tenant-context';
 import { parseFieldOptions, validateFieldValue } from './dynamic-entity-validation';
@@ -10,6 +12,7 @@ import { parseFieldOptions, validateFieldValue } from './dynamic-entity-validati
 export type BusinessSchemaChangeErrorCode =
   | 'FIELD_KEY_IMMUTABLE'
   | 'INVALID_FIELD_OPTIONS'
+  | 'INVALID_STALE_AFTER'
   | 'REQUIRED_FIELD_MISSING_IN_EXISTING_DATA'
   | 'IN_USE_SELECT_OPTION_REMOVAL'
   | 'IN_USE_FIELD_TYPE_CHANGE';
@@ -35,6 +38,8 @@ export interface AddBusinessFieldDefinitionInput {
   enabled?: boolean;
   options?: Prisma.InputJsonValue | null;
   displayOrder: number;
+  freshnessClass?: FreshnessClass;
+  staleAfterSeconds?: number | null;
   businessId?: never;
 }
 
@@ -45,6 +50,8 @@ export interface UpdateBusinessFieldDefinitionInput {
   enabled?: boolean;
   options?: Prisma.InputJsonValue | null;
   displayOrder?: number;
+  freshnessClass?: FreshnessClass;
+  staleAfterSeconds?: number | null;
   key?: never;
   businessId?: never;
 }
@@ -61,6 +68,16 @@ export interface TenantBusinessSchemaService {
 
 const isSelectableType = (type: BusinessFieldType) =>
   type === 'SELECT' || type === 'MULTI_SELECT';
+
+const assertValidStaleAfter = (fieldKey: string, value: number | null | undefined) => {
+  if (value !== undefined && value !== null && (!Number.isInteger(value) || value < 0)) {
+    throw new BusinessSchemaChangeError(
+      'INVALID_STALE_AFTER',
+      fieldKey,
+      'Stale-after seconds must be a non-negative integer or null.',
+    );
+  }
+};
 
 const assertValidOptions = (
   fieldKey: string,
@@ -130,6 +147,7 @@ export const createTenantBusinessSchemaService = (
         const enabled = input.enabled ?? true;
 
         assertValidOptions(input.key, input.type, input.options);
+        assertValidStaleAfter(input.key, input.staleAfterSeconds);
 
         if (required && enabled) {
           const existingEntityCount = await transaction.businessEntity.count({
@@ -160,12 +178,22 @@ export const createTenantBusinessSchemaService = (
               ? {}
               : { options: input.options === null ? Prisma.DbNull : input.options }),
             displayOrder: input.displayOrder,
+            freshnessClass: input.freshnessClass ?? 'CHANGING',
+            staleAfterSeconds: input.staleAfterSeconds ?? null,
           },
         });
 
         await transaction.businessEntityType.update({
           where: { id: entityType.id },
           data: { schemaVersion: { increment: 1 } },
+        });
+
+        await appendTenantAuditEvent(transaction, tenant, {
+          targetType: 'BUSINESS_FIELD_DEFINITION',
+          targetId: field.id,
+          action: 'SCHEMA_CHANGE',
+          before: null,
+          after: field,
         });
 
         return field;
@@ -191,9 +219,16 @@ export const createTenantBusinessSchemaService = (
           );
         }
 
-        const hasContractChange = ['label', 'type', 'required', 'enabled', 'options', 'displayOrder'].some(
-          key => Object.hasOwn(input, key),
-        );
+        const hasContractChange = [
+          'label',
+          'type',
+          'required',
+          'enabled',
+          'options',
+          'displayOrder',
+          'freshnessClass',
+          'staleAfterSeconds',
+        ].some(key => Object.hasOwn(input, key));
 
         if (!hasContractChange) {
           return field;
@@ -203,6 +238,7 @@ export const createTenantBusinessSchemaService = (
         const nextRequired = input.required ?? field.required;
         const nextEnabled = input.enabled ?? field.enabled;
         const optionsWereProvided = Object.hasOwn(input, 'options');
+        assertValidStaleAfter(field.key, input.staleAfterSeconds);
         const nextOptions = isSelectableType(nextType)
           ? optionsWereProvided
             ? input.options
@@ -302,12 +338,26 @@ export const createTenantBusinessSchemaService = (
             ...(input.displayOrder === undefined
               ? {}
               : { displayOrder: input.displayOrder }),
+            ...(input.freshnessClass === undefined
+              ? {}
+              : { freshnessClass: input.freshnessClass }),
+            ...(input.staleAfterSeconds === undefined
+              ? {}
+              : { staleAfterSeconds: input.staleAfterSeconds }),
           },
         });
 
         await transaction.businessEntityType.update({
           where: { id: field.entityTypeId },
           data: { schemaVersion: { increment: 1 } },
+        });
+
+        await appendTenantAuditEvent(transaction, tenant, {
+          targetType: 'BUSINESS_FIELD_DEFINITION',
+          targetId: updatedField.id,
+          action: 'SCHEMA_CHANGE',
+          before: field,
+          after: updatedField,
         });
 
         return updatedField;
