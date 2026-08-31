@@ -1,7 +1,7 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "description": "A general-purpose Mastra agent with a local workspace, shell tools, memory, task tracking, web access, and recurring schedules.",
+  "description": "Mastra application server for the multi-tenant WhatsApp automation platform.",
   "main": "index.js",
   "private": true,
   "scripts": {

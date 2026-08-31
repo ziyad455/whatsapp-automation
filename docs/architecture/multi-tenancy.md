@@ -62,6 +62,8 @@ The sender's phone number identifies a customer only inside the resolved busines
 
 Tools are constructed or bound with the already-authorized TenantContext. Model-visible tool input contains only business-domain search parameters, never an unrestricted tenant selector. Prompt instructions supplement but never replace repository authorization.
 
+The shared agent is a stateless definition. Each invocation receives a new Mastra RequestContext whose required `tenant` value is validated against the canonical TenantContext shape. The agent is never mutated with a current business, tenant identifiers are not interpolated into its system prompt, and missing trusted context fails closed before an LLM request.
+
 ## Required tests
 
 Isolation tests must cover direct IDs, nested relations, lists and filters, dynamic JSONB entities, AI tools, conversations/messages, leads/follow-ups, analytics, and attempts to influence tenant selection through prompts.

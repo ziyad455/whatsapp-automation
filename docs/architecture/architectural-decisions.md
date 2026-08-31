@@ -8,6 +8,8 @@ A single application serves all businesses. This keeps deployment and operations
 
 Business behavior comes from request-scoped context, rules, and tools rather than hard-coded agents per company. The agent definition is shared; tenant state is not.
 
+The implementation registers one Mastra agent with ID `customer-service`. `runCustomerServiceAgent` is the application invocation boundary and creates a fresh, schema-validated RequestContext from trusted TenantContext for every call. The shared agent stores no current tenant and currently has neither persistent memory nor agent-bound tools; these are introduced only when their isolation and source-of-truth rules are implemented.
+
 ## React + Vite + TypeScript dashboard
 
 The dashboard is a client application for business configuration and operations. Server rendering and Next.js-specific capabilities are not current requirements.

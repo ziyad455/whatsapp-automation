@@ -24,6 +24,8 @@ Sprint 4 integration coverage additionally exercises profile changes, the seven-
 
 Sprint 5 coverage exercises server-controlled provenance, secret-safe transactional before/after audit events, tenant-scoped audit reads, field-level STABLE/CHANGING/REAL_TIME classifications, deterministic FRESH/STALE/UNKNOWN decisions, verification without value mutation, archive/restore history, and one DatabaseBusinessDataProvider across car-rental, salon, and gym tenants. Request-time tests reuse the same provider instance and prove that price and availability updates appear on the next call without a cached snapshot.
 
+Sprint 6 shared-agent coverage verifies one stable registration, no tenant-specific prompt or persistent memory, validated request-scoped TenantContext propagation, A-to-B-to-A reuse, concurrent car-rental/salon/gym isolation, forged-message resistance, and failure before model execution when trusted context is absent. These tests use an injected executor seam at the production invocation boundary and do not call the external LLM provider.
+
 ## Tenant-isolation tests
 
 Create at least two businesses with overlapping-looking identifiers and data. Attempt cross-tenant reads and writes through routes, repositories, nested relationships, tools, filters, conversations, leads, follow-ups, and analytics.
