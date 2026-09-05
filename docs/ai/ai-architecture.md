@@ -4,6 +4,8 @@
 
 The platform uses one shared Mastra customer-service agent definition for all businesses. It does not create hard-coded agents or source branches per tenant.
 
+The implemented agent has the stable Mastra ID `customer-service` and is registered once. Its base instructions and model are tenant-neutral; it has no persistent memory and no agent-bound tools at this stage. Application code invokes it through `runCustomerServiceAgent`, which creates a fresh validated Mastra `RequestContext` from the already-authorized `TenantContext` for every run.
+
     authorized request
       -> TenantContext
       -> runtime BusinessContext
@@ -13,6 +15,8 @@ The platform uses one shared Mastra customer-service agent definition for all bu
       -> structured result
 
 The agent definition may be long-lived, but tenant context, tool bindings, and conversation input are request-scoped. Mutable business state must never be stored globally on the shared agent.
+
+Tenant identifiers are runtime authorization data, not model instructions. The shared base prompt never interpolates `businessId`, `membershipId`, or `userId`. S7 tools will receive the trusted runtime context through server-side binding rather than model-visible tenant arguments.
 
 ## Dynamic business behavior
 

@@ -15,7 +15,7 @@ import { applicationLogger } from '../http/logger';
 import { readinessMiddleware, requestContextMiddleware } from '../http/middleware';
 import { getOrCreateRequestId } from '../http/request-context';
 import { applicationRoutes } from '../http/routes';
-import { agent } from './agents/agent';
+import { customerServiceAgent } from './agents/customer-service-agent';
 import { startScheduleTool, stopScheduleTool } from './tools/schedule-tools';
 
 const observabilityStorage = env.MASTRA_OBSERVABILITY_DATABASE_PATH
@@ -26,7 +26,7 @@ export const mastra = new Mastra({
   bundler: {
     externals: ['@duckdb/node-bindings'],
   },
-  agents: { agent },
+  agents: { customerServiceAgent },
   tools: { startScheduleTool, stopScheduleTool },
   logger: applicationLogger,
   server: {

@@ -9,6 +9,8 @@ Agent context is the bounded information needed for one authorized run. It is no
 
 BusinessContext is derived only after TenantContext exists. It cannot change or widen the authorized tenant.
 
+The shared customer-service agent declares a runtime schema for the canonical TenantContext stored under the `tenant` RequestContext key. The invocation boundary validates that object and constructs a new RequestContext per run; missing or malformed trusted context fails before provider execution. Customer messages remain a separate model input and cannot populate or replace this key. Tracing selects only `tenant.businessId` as tenant correlation metadata rather than attaching user or membership identity.
+
 ## Appropriate context
 
 Context may include:

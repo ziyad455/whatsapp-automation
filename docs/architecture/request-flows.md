@@ -37,6 +37,8 @@ Raw Meta payload details stop at the transport adapter. Domain and AI code use n
 
     Agent run
       -> already-authorized TenantContext
+      -> runCustomerServiceAgent creates a fresh validated RequestContext
+      -> one registered customer-service agent
       -> tenant-bound tool
       -> BusinessDataProvider
       -> current PostgreSQL or external-provider fact
@@ -44,6 +46,8 @@ Raw Meta payload details stop at the transport adapter. Domain and AI code use n
       -> grounded response or explicit unknown/stale result
 
 The model does not provide businessId to the tool.
+
+The implemented S6 boundary stops at the shared agent invocation: the agent currently has no tools or persistent memory. Business-data tools and structured response handling are added in their dedicated later tasks. Callers must enter through the application invocation boundary with a trusted TenantContext; arbitrary request payload fields and message text are not tenant resolution.
 
 The initial provider is DatabaseBusinessDataProvider. Every call delegates to current tenant-scoped services and performs the required PostgreSQL reads at call time. Source and freshness status travel with factual results; no agent, module global, or session-held context blob substitutes for that lookup.
 

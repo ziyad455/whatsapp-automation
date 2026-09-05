@@ -48,6 +48,8 @@ Domain audit snapshots pass through recursive secret-key redaction before persis
 
 Customer messages and business-provided catalog text are untrusted data. Prompt instructions alone cannot enforce authorization. Deterministic scoping, allow-listed tools, input validation, output limits, and action boundaries must remain effective when the model follows hostile text.
 
+Agent invocation keeps trusted TenantContext in Mastra RequestContext and messages in a separate input channel. The runtime schema requires valid internal identifiers and role before provider execution. The shared prompt contains no tenant identifiers, and neither customer text nor client-provided request-context data may become the authorized tenant.
+
 ## AI action boundaries
 
 The model may propose a reply, intent, or handoff. It does not grant permissions. Any external side effect requires current server-side authorization, validation, lifecycle checks, and idempotency.
