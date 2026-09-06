@@ -23,14 +23,20 @@ export const customerServiceRequestContextSchema = z.object({
 export type CustomerServiceRequestContext = z.output<typeof customerServiceRequestContextSchema>;
 
 export const AI_RUN_KEY = 'customer-service-run';
+export type BusinessInformationKind =
+  | 'profile'
+  | 'opening_hours'
+  | 'rules'
+  | 'entity_types'
+  | 'entities';
 export interface FactReceipt {
   reference: string;
   status: 'FRESH' | 'STALE' | 'UNKNOWN';
-  kind: 'entities' | 'rules' | 'opening_hours';
+  kind: BusinessInformationKind;
 }
 export interface FactLookupReceipt {
   status: 'FOUND' | 'MISSING' | 'UNAVAILABLE' | 'INVALID_QUERY';
-  kind: 'entity_types' | FactReceipt['kind'];
+  kind: BusinessInformationKind;
 }
 
 const UNVERIFIED_REPLY: Readonly<Record<AgentLanguage, string>> = {
@@ -63,6 +69,12 @@ export class CustomerServiceRun {
   authorize(tenant: TenantContext): void {
     if (this.#closed || Object.entries(this.#tenant).some(([key, value]) =>
       tenant[key as keyof TenantContext] !== value)) {
+      throw new Error('Authorized AI runtime context is required.');
+    }
+  }
+
+  assertBusinessId(businessId: string): void {
+    if (this.#closed || businessId !== this.#tenant.businessId) {
       throw new Error('Authorized AI runtime context is required.');
     }
   }

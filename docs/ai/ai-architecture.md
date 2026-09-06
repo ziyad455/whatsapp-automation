@@ -4,7 +4,7 @@
 
 The platform uses one shared Mastra customer-service agent definition for all businesses. It does not create hard-coded agents or source branches per tenant.
 
-The implemented agent has the stable Mastra ID `customer-service` and is registered once. Its base instructions and model are tenant-neutral. Application code invokes it through `runCustomerServiceAgent`, which builds current stable configuration and bounded history, then creates a fresh validated Mastra `RequestContext` for every run. One generic read tool, `readBusinessFacts`, retrieves current data; persistent memory remains disabled.
+The implemented agent has the stable Mastra ID `customer-service` and is registered once. Its base instructions and model are tenant-neutral. Application code invokes it through `runCustomerServiceAgent`, which builds minimal identity/routing configuration and bounded history, then creates a fresh validated Mastra `RequestContext` for every run. Six narrow read tools retrieve current profile, hours, active rules, dynamic types, entity search results, and exact entities; persistent memory remains disabled.
 
     authorized request
       -> TenantContext

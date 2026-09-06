@@ -1,63 +1,74 @@
+import { randomUUID } from 'node:crypto';
 import { RequestContext } from '@mastra/core/request-context';
 import { noopObserve } from '@mastra/core/tools';
 import { describe, expect, it, vi } from 'vitest';
 import { runCustomerServiceAgent, type CustomerServiceAgentExecution } from '../src/ai/customer-service-agent';
 import { buildBusinessContext } from '../src/ai/business-context';
+import { checkBusinessInformation } from '../src/ai/business-information';
 import { buildBusinessInstructions } from '../src/ai/business-instructions';
 import { agentResultSchema } from '../src/ai/agent-result';
 import { analyzeCustomerMessage } from '../src/ai/customer-message-analysis';
 import { buildConversationMessages, HISTORY_MESSAGE_LIMIT, HISTORY_CHARACTER_LIMIT } from '../src/ai/conversation-context';
 import { AI_RUN_KEY, requireCustomerServiceRun } from '../src/ai/request-context';
 import { CUSTOMER_SERVICE_AGENT_ID, customerServiceAgent } from '../src/mastra/agents/customer-service-agent';
-import { readBusinessFacts, businessFactsOutputSchema, businessFactsInputSchema } from '../src/mastra/tools/business-facts';
+import {
+  businessEntitySearchOutputSchema,
+  businessRulesOutputSchema,
+  getBusinessRules,
+  searchBusinessEntities,
+  searchBusinessEntitiesInputSchema,
+} from '../src/mastra/tools/business-information-tools';
 import { mastra } from '../src/mastra/index';
 import { TENANT_CONTEXT_KEY } from '../src/tenancy/tenant-context';
 import { fakeTenant, fakeProvider, fakeMetadata } from './helpers/ai-fixtures';
 
 describe('shared customer-service runtime', () => {
-  it('keeps one shared registration, one read capability, and no memory', async () => {
+  it('keeps one shared registration, six read capabilities, and no memory', async () => {
     expect(Object.values(mastra.listAgents())).toEqual([customerServiceAgent]);
     expect(mastra.getAgentById(CUSTOMER_SERVICE_AGENT_ID)).toBe(customerServiceAgent);
-    expect(Object.keys(await customerServiceAgent.listTools())).toEqual(['readBusinessFacts']);
+    expect(Object.keys(await customerServiceAgent.listTools())).toEqual([
+      'getBusinessProfile',
+      'getOpeningHours',
+      'getBusinessRules',
+      'listEntityTypes',
+      'searchBusinessEntities',
+      'getBusinessEntity',
+    ]);
     expect(await customerServiceAgent.getMemory()).toBeUndefined();
   });
 
   it('builds only projected configuration, never a catalog or internal IDs', async () => {
     const tenant = fakeTenant();
     const provider = fakeProvider(tenant);
+    const hours = vi.spyOn(provider, 'getOpeningHours');
+    const rules = vi.spyOn(provider, 'getBusinessRules');
     const catalog = vi.spyOn(provider, 'searchEntities');
-    const types = vi.spyOn(provider, 'listEntityTypes');
     const context = await buildBusinessContext(tenant, () => provider);
     expect(context).toMatchObject({ name: 'Atlas Cars', defaultLanguage: 'fr', supportedLanguages: ['darija', 'ar', 'fr', 'en'] });
-    expect(context.normalOpeningHours[0]).toMatchObject({ dayOfWeek: 'MONDAY', closesAt: '18:00' });
     const prompt = buildBusinessInstructions(context);
-    expect(prompt).toContain('Deposit required: 3000 MAD');
+    expect(prompt).not.toContain('Deposit required: 3000 MAD');
+    expect(prompt).not.toContain('Local customer service.');
     for (const forbidden of [...Object.values(tenant), 'private-provider-id', 'private-phone', 'private-address']) {
       expect(prompt).not.toContain(forbidden);
     }
+    expect(hours).not.toHaveBeenCalled();
+    expect(rules).not.toHaveBeenCalled();
     expect(catalog).not.toHaveBeenCalled();
-    expect(types).not.toHaveBeenCalled();
   });
 
-  it('defers non-STABLE hours and policies to tools and retains freshness on stable context', async () => {
-    const tenant = fakeTenant();
-    const provider = fakeProvider(tenant);
-    const hours = await provider.getOpeningHours();
-    hours[0].metadata = fakeMetadata({ freshnessClass: 'CHANGING' });
-    provider.getOpeningHours = async () => hours;
-    const rules = await provider.getBusinessRules();
-    rules[0].metadata = fakeMetadata({ freshnessStatus: 'STALE', isStale: true });
-    provider.getBusinessRules = async () => rules;
-    const context = await buildBusinessContext(tenant, () => provider);
-    expect(context.normalOpeningHours).toEqual([]);
-    expect(context.deferredOpeningHours).toBe(true);
-    expect(context.rules[0].metadata.freshnessStatus).toBe('STALE');
+  it('distinguishes current, stale, missing, invalid, and unavailable information', () => {
+    expect(checkBusinessInformation('FOUND', ['FRESH'])).toEqual({ status: 'FOUND', freshnessStatus: 'FRESH' });
+    expect(checkBusinessInformation('FOUND', ['FRESH', 'STALE'])).toEqual({ status: 'FOUND', freshnessStatus: 'STALE' });
+    expect(checkBusinessInformation('FOUND', ['UNKNOWN'])).toEqual({ status: 'FOUND', freshnessStatus: 'UNKNOWN' });
+    expect(checkBusinessInformation('MISSING')).toEqual({ status: 'MISSING', freshnessStatus: 'UNKNOWN' });
+    expect(checkBusinessInformation('INVALID_QUERY')).toEqual({ status: 'INVALID_QUERY', freshnessStatus: 'UNKNOWN' });
+    expect(checkBusinessInformation('UNAVAILABLE')).toEqual({ status: 'UNAVAILABLE', freshnessStatus: 'UNKNOWN' });
   });
 
-  it('rejects oversized configuration instead of silently dropping policies', async () => {
+  it('rejects oversized runtime identity configuration', async () => {
     const tenant = fakeTenant();
     const context = await buildBusinessContext(tenant, fakeProvider);
-    expect(() => buildBusinessInstructions({ ...context, description: 'x'.repeat(33000) })).toThrow(/budget/);
+    expect(() => buildBusinessInstructions({ ...context, name: 'x'.repeat(33000) })).toThrow(/budget/);
   });
 
   it('isolates A/B/A and concurrent business instructions, histories, context, and tools', async () => {
@@ -183,10 +194,10 @@ describe('shared customer-service runtime', () => {
 
   it('rejects tenant arguments, bounds tool output, and withholds stale/unknown values', async () => {
     const tenant = fakeTenant();
-    expect(businessFactsInputSchema.safeParse({ kind: 'entities', entityType: 'vehicle', businessId: fakeTenant().businessId }).success).toBe(false);
+    expect(searchBusinessEntitiesInputSchema.safeParse({ entityType: 'vehicle', businessId: fakeTenant().businessId }).success).toBe(false);
     const provider = fakeProvider(tenant);
     provider.searchEntities = async () => ({ limit: 5, offset: 0, items: [{
-      id: 'private-entity', entityTypeId: 'private-type', entityTypeKey: 'vehicle', name: 'Clio', status: 'ACTIVE',
+      id: randomUUID(), entityTypeId: 'private-type', entityTypeKey: 'vehicle', name: 'Clio', status: 'ACTIVE',
       source: 'MANUAL', externalId: 'private-external', lastVerifiedAt: new Date(), updatedAt: new Date(),
       fields: ['price', 'availability', 'apiKey'].map((key, index) => ({
         definitionId: 'private-field', key, label: key, type: 'NUMBER', value: index === 0 ? 450 : 123456, hasValue: true,
@@ -196,9 +207,9 @@ describe('shared customer-service runtime', () => {
     const result = await runCustomerServiceAgent({ tenant, message: 'Current price?' }, {
       createProvider: () => provider,
       executor: async execution => {
-        const output = businessFactsOutputSchema.parse(await readBusinessFacts.execute!({ kind: 'entities', entityType: 'vehicle' }, { requestContext: execution.requestContext, observe: noopObserve }));
-        expect(output.facts.map(fact => fact.value)).toEqual([null, null]);
-        expect(output.facts.map(fact => fact.metadata.freshnessStatus)).toEqual(['STALE', 'UNKNOWN']);
+        const output = businessEntitySearchOutputSchema.parse(await searchBusinessEntities.execute!({ entityType: 'vehicle', limit: 5, offset: 0 }, { requestContext: execution.requestContext, observe: noopObserve }));
+        expect(output.entities[0]?.fields.map(field => field.value)).toEqual([null, null]);
+        expect(output.entities[0]?.fields.map(field => field.metadata.freshnessStatus)).toEqual(['STALE', 'UNKNOWN']);
         expect(JSON.stringify(output)).not.toMatch(/450|123456|private-|apiKey/);
         return 'The current price is definitely 450 MAD.';
       },
@@ -212,11 +223,11 @@ describe('shared customer-service runtime', () => {
     const result = await runCustomerServiceAgent({ tenant, message: 'What is the Tesla price?' }, {
       createProvider: fakeProvider,
       executor: async execution => {
-        const output = await readBusinessFacts.execute!({ kind: 'entities', entityType: 'vehicle', search: 'Tesla' }, {
+        const output = await searchBusinessEntities.execute!({ entityType: 'vehicle', text: 'Tesla', limit: 5, offset: 0 }, {
           requestContext: execution.requestContext,
           observe: noopObserve,
         });
-        expect(output).toMatchObject({ status: 'MISSING', facts: [] });
+        expect(output).toMatchObject({ information: { status: 'MISSING' }, entities: [] });
         return 'The Tesla price is definitely 900 MAD.';
       },
     });
@@ -238,13 +249,13 @@ describe('shared customer-service runtime', () => {
       createProvider: () => provider,
       executor: async execution => {
         captured = execution;
-        const query = { kind: 'entities' as const, entityType: 'vehicle' };
+        const query = { entityType: 'vehicle', limit: 5, offset: 0 };
         const context = { requestContext: execution.requestContext, observe: noopObserve };
-        const missing = businessFactsOutputSchema.parse(await readBusinessFacts.execute!(query, context));
-        expect(missing).toMatchObject({ status: 'MISSING', facts: [] });
+        const missing = businessEntitySearchOutputSchema.parse(await searchBusinessEntities.execute!(query, context));
+        expect(missing).toMatchObject({ information: { status: 'MISSING' }, entities: [] });
         provider.searchEntities = async () => { throw new Error('private database diagnostic'); };
-        const unavailable = businessFactsOutputSchema.parse(await readBusinessFacts.execute!(query, context));
-        expect(unavailable).toMatchObject({ status: 'UNAVAILABLE', facts: [] });
+        const unavailable = businessEntitySearchOutputSchema.parse(await searchBusinessEntities.execute!(query, context));
+        expect(unavailable).toMatchObject({ information: { status: 'UNAVAILABLE' }, entities: [] });
         expect(JSON.stringify(unavailable)).not.toContain('private');
         throw providerFailure;
       },
@@ -263,9 +274,9 @@ describe('shared customer-service runtime', () => {
     await runCustomerServiceAgent({ tenant, message: 'Rules?' }, {
       createProvider: () => ++factories === 1 ? fakeProvider(tenant) : provider,
       executor: async execution => {
-        const output = businessFactsOutputSchema.parse(await readBusinessFacts.execute!({ kind: 'rules' }, { requestContext: execution.requestContext, observe: noopObserve }));
+        const output = businessRulesOutputSchema.parse(await getBusinessRules.execute!({}, { requestContext: execution.requestContext, observe: noopObserve }));
         expect(output.truncated).toBe(true);
-        expect(JSON.stringify(output.facts).length).toBeLessThan(16100);
+        expect(JSON.stringify(output.rules).length).toBeLessThan(12100);
         return 'The policy is available.';
       },
     });
