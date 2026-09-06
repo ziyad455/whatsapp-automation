@@ -1,67 +1,64 @@
-import type { MessageListInput } from '@mastra/core/agent/message-list';
 import { RequestContext } from '@mastra/core/request-context';
-import {
-  customerServiceAgent,
-  customerServiceTenantContextSchema,
-  type CustomerServiceRequestContext,
-} from '../mastra/agents/customer-service-agent';
+import type { MastraLanguageModel } from '@mastra/core/agent';
+import { customerServiceAgent } from '../mastra/agents/customer-service-agent';
+import { createDatabaseBusinessDataProvider } from '../business-data/database-business-data-provider';
 import { TENANT_CONTEXT_KEY, type TenantContext } from '../tenancy/tenant-context';
+import { buildBusinessContext, type BusinessDataProviderFactory } from './business-context';
+import { buildBusinessInstructions } from './business-instructions';
+import { buildConversationMessages, type ConversationHistory, type ConversationMessage } from './conversation-context';
+import { agentCandidateSchema, type AgentResult } from './agent-result';
+import { AI_RUN_KEY, CustomerServiceRun, customerServiceTenantContextSchema, type CustomerServiceRequestContext } from './request-context';
 
 export interface CustomerServiceAgentInput {
   readonly tenant: TenantContext;
-  readonly messages: MessageListInput;
+  readonly message: string;
+  // Trusted application history; future conversation loader must authorize its tenant/thread.
+  readonly history?: ConversationHistory;
 }
 
 export interface CustomerServiceAgentExecution {
-  readonly messages: MessageListInput;
+  readonly messages: ConversationMessage[];
   readonly requestContext: RequestContext<CustomerServiceRequestContext>;
+  readonly instructions: string;
 }
 
-const executeCustomerServiceAgent = (execution: CustomerServiceAgentExecution) =>
-  customerServiceAgent.generate(execution.messages, {
+export const executeCustomerServiceAgent = async (execution: CustomerServiceAgentExecution, model?: MastraLanguageModel): Promise<unknown> => {
+  const result = await customerServiceAgent.generate(execution.messages, {
     requestContext: execution.requestContext,
-    tracingOptions: {
-      requestContextKeys: [`${TENANT_CONTEXT_KEY}.businessId`],
-    },
+    instructions: execution.instructions,
+    ...(model ? { model } : {}),
+    structuredOutput: { schema: agentCandidateSchema, errorStrategy: 'strict', jsonPromptInjection: true },
+    maxSteps: 6,
+    abortSignal: AbortSignal.timeout(60000),
+    modelSettings: { maxOutputTokens: 2000 },
+    tracingOptions: { requestContextKeys: [`${TENANT_CONTEXT_KEY}.businessId`], hideInput: true, hideOutput: true },
   });
-
-export type CustomerServiceAgentResult = Awaited<
-  ReturnType<typeof executeCustomerServiceAgent>
->;
-
-export type CustomerServiceAgentExecutor<TResult> = (
-  execution: CustomerServiceAgentExecution,
-) => Promise<TResult>;
-
-const createCustomerServiceRequestContext = (
-  tenant: TenantContext,
-): RequestContext<CustomerServiceRequestContext> => {
-  const validatedTenant = customerServiceTenantContextSchema.parse(tenant);
-
-  return new RequestContext<CustomerServiceRequestContext>([
-    [TENANT_CONTEXT_KEY, validatedTenant],
-  ]);
+  return result.object;
 };
 
-export function runCustomerServiceAgent(
-  input: CustomerServiceAgentInput,
-): Promise<CustomerServiceAgentResult>;
-export function runCustomerServiceAgent<TResult>(
-  input: CustomerServiceAgentInput,
-  executor: CustomerServiceAgentExecutor<TResult>,
-): Promise<TResult>;
-export async function runCustomerServiceAgent<TResult>(
-  input: CustomerServiceAgentInput,
-  executor?: CustomerServiceAgentExecutor<TResult>,
-): Promise<CustomerServiceAgentResult | TResult> {
-  const execution: CustomerServiceAgentExecution = {
-    messages: input.messages,
-    requestContext: createCustomerServiceRequestContext(input.tenant),
-  };
-
-  if (executor) {
-    return executor(execution);
-  }
-
-  return executeCustomerServiceAgent(execution);
+export type CustomerServiceAgentExecutor = (execution: CustomerServiceAgentExecution) => Promise<unknown>;
+export interface CustomerServiceAgentDependencies {
+  createProvider?: BusinessDataProviderFactory;
+  executor?: CustomerServiceAgentExecutor;
 }
+
+export const runCustomerServiceAgent = async (
+  input: CustomerServiceAgentInput,
+  dependencies: CustomerServiceAgentDependencies = {},
+): Promise<AgentResult> => {
+  const tenant = customerServiceTenantContextSchema.parse(input.tenant);
+  const messages = buildConversationMessages(tenant, input.message, input.history);
+  const createProvider = dependencies.createProvider ?? createDatabaseBusinessDataProvider;
+  const business = await buildBusinessContext(tenant, createProvider);
+  const instructions = buildBusinessInstructions(business);
+  const run = new CustomerServiceRun(tenant, business, createProvider(tenant));
+  const requestContext = new RequestContext<CustomerServiceRequestContext>([[TENANT_CONTEXT_KEY, tenant]]);
+  requestContext.setRaw(AI_RUN_KEY, run);
+  try {
+    const value = await (dependencies.executor ?? executeCustomerServiceAgent)({ messages, requestContext, instructions });
+    return run.finish(value);
+  } finally {
+    run.close();
+    requestContext.deleteRaw(AI_RUN_KEY);
+  }
+};

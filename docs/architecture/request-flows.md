@@ -37,17 +37,20 @@ Raw Meta payload details stop at the transport adapter. Domain and AI code use n
 
     Agent run
       -> already-authorized TenantContext
+      -> buildBusinessContext reads current stable configuration
+      -> buildBusinessInstructions + bounded recent history
       -> runCustomerServiceAgent creates a fresh validated RequestContext
       -> one registered customer-service agent
       -> tenant-bound tool
       -> BusinessDataProvider
       -> current PostgreSQL or external-provider fact
       -> limited, validated tool result
-      -> grounded response or explicit unknown/stale result
+      -> Mastra structuredOutput + run-local fact-reference validation
+      -> AgentResult or a rejected unsafe/failed invocation
 
 The model does not provide businessId to the tool.
 
-The implemented S6 boundary stops at the shared agent invocation: the agent currently has no tools or persistent memory. Business-data tools and structured response handling are added in their dedicated later tasks. Callers must enter through the application invocation boundary with a trusted TenantContext; arbitrary request payload fields and message text are not tenant resolution.
+The implemented boundary returns a structured AgentResult using one generic read capability. Persistent conversation state, the full S7 tool suite, transport, and handoff remain later tasks. Callers enter through the application invocation boundary with trusted TenantContext and authorized history; arbitrary request payload fields and message text are not tenant resolution. The run capability is invalidated after completion or failure.
 
 The initial provider is DatabaseBusinessDataProvider. Every call delegates to current tenant-scoped services and performs the required PostgreSQL reads at call time. Source and freshness status travel with factual results; no agent, module global, or session-held context blob substitutes for that lookup.
 

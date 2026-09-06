@@ -65,6 +65,8 @@ Changing a value through the dashboard or an authorized provider must affect the
 
 If a value is absent, stale, or cannot be verified at its required freshness level, tools return that state explicitly. The agent asks for clarification or hands off rather than presenting the value confidently.
 
+The AI projection currently withholds STALE/UNKNOWN tool values as null while preserving freshness/source labels. Stable instruction data retains its metadata and must not be promoted to a verified fact merely because it is in a prompt. Default CHANGING opening hours are read through the tool; only explicitly STABLE normal hours enter BusinessContext. Rule/profile changes rebuild the next run's configuration, while catalog updates are visible on the next tool read.
+
 ## Auditability
 
 For an important change, the system should be able to answer:

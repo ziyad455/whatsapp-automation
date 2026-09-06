@@ -64,6 +64,8 @@ Tools are constructed or bound with the already-authorized TenantContext. Model-
 
 The shared agent is a stateless definition. Each invocation receives a new Mastra RequestContext whose required `tenant` value is validated against the canonical TenantContext shape. The agent is never mutated with a current business, tenant identifiers are not interpolated into its system prompt, and missing trusted context fails closed before an LLM request.
 
+BusinessContext is a public configuration projection built after TenantContext resolution; it cannot select the tenant. A server-created run capability supplies the tool's provider and checks all tenant identity fields on access. Client JSON cannot forge that capability. History is bounded and accepted only from an authorized application caller with matching business ownership; future thread persistence must add thread ownership checks. See [agent context](../ai/agent-context.md).
+
 ## Required tests
 
 Isolation tests must cover direct IDs, nested relations, lists and filters, dynamic JSONB entities, AI tools, conversations/messages, leads/follow-ups, analytics, and attempts to influence tenant selection through prompts.

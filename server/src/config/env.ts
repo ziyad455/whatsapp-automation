@@ -37,7 +37,7 @@ const serverEnvironmentSchema = z.object({
     value => value.length === 0 || /^postgres(?:ql)?:\/\//.test(value),
     'DATABASE_URL must be a PostgreSQL connection URL',
   ),
-  GOOGLE_GENERATIVE_AI_API_KEY: requiredEnvironmentVariable('GOOGLE_GENERATIVE_AI_API_KEY'),
+  OPENROUTER_API_KEY: requiredEnvironmentVariable('OPENROUTER_API_KEY'),
   BETTER_AUTH_SECRET: requiredEnvironmentVariable('BETTER_AUTH_SECRET').refine(
     value => value.length >= 32,
     'BETTER_AUTH_SECRET must contain at least 32 characters',
