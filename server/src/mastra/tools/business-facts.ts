@@ -39,6 +39,7 @@ export const readBusinessFacts = createTool({
     const output: BusinessFacts = { status: 'MISSING', truncated: false, entityTypes: [], facts: [] };
     if ((query.kind === 'entities' && !query.entityType) ||
       (query.kind !== 'entities' && (query.entityType || query.search || query.fields))) {
+      run.recordLookup('INVALID_QUERY', query.kind);
       return { ...output, status: 'INVALID_QUERY' };
     }
     const provider = run.provider;
@@ -84,6 +85,7 @@ export const readBusinessFacts = createTool({
         for (const rule of rules.slice(0, 40)) add(rule.name, 'policy', rule.content, rule.metadata);
       }
     } catch {
+      run.recordLookup('UNAVAILABLE', query.kind);
       return { status: 'UNAVAILABLE', truncated: false, facts: [], entityTypes: [] };
     }
     output.status = output.facts.length || output.entityTypes.length ? 'FOUND' : 'MISSING';
@@ -91,6 +93,7 @@ export const readBusinessFacts = createTool({
     if (query.kind !== 'entity_types') {
       for (const fact of validated.facts) fact.reference = run.record(fact.metadata.freshnessStatus, query.kind);
     }
+    run.recordLookup(validated.status, query.kind);
     return validated;
   },
 });
