@@ -50,6 +50,8 @@ Customer messages and business-provided catalog text are untrusted data. Prompt 
 
 Agent invocation keeps trusted TenantContext in Mastra RequestContext and messages in a separate input channel. The runtime schema requires valid internal identifiers and role before provider execution. The shared prompt contains no tenant identifiers, and neither customer text nor client-provided request-context data may become the authorized tenant.
 
+Business instruction JSON is rebuilt from tenant-scoped services and remains untrusted text with respect to the shared safety policy. Tools require a server-created run capability in addition to the typed tenant shape; a plausible JSON object or prompt cannot construct it. History accepts only bounded user/assistant text from the authorized application caller. Structured results fail validation for unknown fields/reasoning, unsupported fact references, or confident price/availability labels without fresh entity evidence. These checks enforce the runtime contract, not perfect semantic truth; prompt-injection and provider-language evaluations remain required.
+
 ## AI action boundaries
 
 The model may propose a reply, intent, or handoff. It does not grant permissions. Any external side effect requires current server-side authorization, validation, lifecycle checks, and idempotency.

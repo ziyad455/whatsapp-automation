@@ -9,7 +9,17 @@ Agent context is the bounded information needed for one authorized run. It is no
 
 BusinessContext is derived only after TenantContext exists. It cannot change or widen the authorized tenant.
 
-The shared customer-service agent declares a runtime schema for the canonical TenantContext stored under the `tenant` RequestContext key. The invocation boundary validates that object and constructs a new RequestContext per run; missing or malformed trusted context fails before provider execution. Customer messages remain a separate model input and cannot populate or replace this key. Tracing selects only `tenant.businessId` as tenant correlation metadata rather than attaching user or membership identity.
+The shared customer-service agent declares a runtime schema for the canonical TenantContext stored under the `tenant` RequestContext key. The invocation boundary validates that object and constructs a new RequestContext per run; missing or malformed trusted context fails before provider execution. Customer messages remain a separate model input and cannot populate or replace this key. A server-created `CustomerServiceRun` capability owns the provider and fact receipts for that invocation. Tracing selects `tenant.businessId` for correlation and hides agent input/output; provider/evidence state uses private fields rather than context snapshots.
+
+`buildBusinessContext` reads profile, stored hours, and active rules through BusinessDataProvider on every invocation. Its model-visible projection contains name, stable description, timezone, currency, default/supported languages, explicitly STABLE normal hours and active rules, freshness metadata, and flags indicating deferred hours/rules. It excludes internal IDs, contact details, audit data, schemas, and catalog entities. CHANGING/REAL_TIME hours or rules are deferred to tool retrieval; normal hours default to CHANGING in the database. Routing preferences remain available even when profile verification is unknown; factual description/policy claims must respect freshness.
+
+`buildBusinessInstructions` composes the shared trust/fact/language/uncertainty/output policy with JSON configuration data. Business text cannot override the shared policy. Configuration is rebuilt per call, so edits or deactivation affect the next invocation. Context limits are 50 stable rules, 2,000 characters per rule, 4,000 description characters, and 32,000 total instruction characters. Excess configuration fails explicitly instead of silently omitting a policy.
+
+## Bounded conversation input
+
+The server-only invocation API accepts the current `message` and optional trusted `history` tagged with its business ID. It rejects a tenant mismatch and permits only text `user`/`assistant` messages, never caller-supplied system or tool messages. A future persisted conversation loader must authorize the business/thread before supplying this history; a client-supplied ownership tag is not proof of authorization.
+
+Initial history policy: keep at most 12 recent messages and 12,000 history characters, plus the current message; every message is limited to 4,000 characters. Keep a contiguous recent suffix and drop a leading orphan assistant answer. These application constants live in `conversation-context.ts` and should be tuned through evaluations. History supports references such as “the first one” but cannot verify an old price. No threads, semantic recall, RAG, or persistent Mastra memory are introduced.
 
 ## Appropriate context
 
@@ -60,5 +70,5 @@ An earlier message may show what was said, not what is currently true. Generated
 
 ## Open Questions
 
-- The exact history window and relevance strategy should be chosen through evaluation rather than fixed without evidence.
-- The roadmap does not yet define which stable business data is embedded per run versus always retrieved through tools.
+- The initial 12-message history window is bounded but still needs pilot evaluation for long or complex conversations.
+- Persisted conversation/thread ownership and authoritative conversation-mode loading belong to the conversation sprint.

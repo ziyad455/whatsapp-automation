@@ -27,6 +27,12 @@ The model may choose business-domain inputs such as a search term, entity type k
 
 Tool names are roadmap-level intent; final signatures belong to implementation.
 
+The current minimal capability is `readBusinessFacts`, registered once on the shared agent and Mastra. Its strict input accepts a `kind` (`entity_types`, `entities`, `opening_hours`, or `rules`) plus optional entity type key, name search, and up to eight field keys. There is no tenant or record-ID argument. It requires both validated TenantContext and the server-created run capability, then queries the bound BusinessDataProvider at execution time.
+
+Search returns at most five active entities, 40 projected facts, and 16,000 fact characters; discovery returns at most 20 type keys/names. Limits are explicit with a `truncated` flag. Output excludes database/external IDs and secret-like field keys, permits bounded primitive values/string lists, and retains source, verification time, volatility, and freshness. STALE/UNKNOWN values are withheld as null; absence and provider failure are distinct MISSING/UNAVAILABLE states. A missing match is not proof that the business never offers the item. The full S7 discovery/filter/action capabilities remain separate work.
+
+Fact references are temporary run-local receipts. Structured output must cite them when using retrieved facts. The runner rejects fabricated references and confident price/availability results without fresh entity evidence. References do not prove arbitrary generated prose is correct, so grounding and multilingual evaluations remain necessary.
+
 ## Input guardrails
 
 - Validate all model-generated input against explicit schemas.

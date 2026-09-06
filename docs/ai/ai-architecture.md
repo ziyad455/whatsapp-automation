@@ -4,7 +4,7 @@
 
 The platform uses one shared Mastra customer-service agent definition for all businesses. It does not create hard-coded agents or source branches per tenant.
 
-The implemented agent has the stable Mastra ID `customer-service` and is registered once. Its base instructions and model are tenant-neutral; it has no persistent memory and no agent-bound tools at this stage. Application code invokes it through `runCustomerServiceAgent`, which creates a fresh validated Mastra `RequestContext` from the already-authorized `TenantContext` for every run.
+The implemented agent has the stable Mastra ID `customer-service` and is registered once. Its base instructions and model are tenant-neutral. Application code invokes it through `runCustomerServiceAgent`, which builds current stable configuration and bounded history, then creates a fresh validated Mastra `RequestContext` for every run. One generic read tool, `readBusinessFacts`, retrieves current data; persistent memory remains disabled.
 
     authorized request
       -> TenantContext
@@ -16,7 +16,7 @@ The implemented agent has the stable Mastra ID `customer-service` and is registe
 
 The agent definition may be long-lived, but tenant context, tool bindings, and conversation input are request-scoped. Mutable business state must never be stored globally on the shared agent.
 
-Tenant identifiers are runtime authorization data, not model instructions. The shared base prompt never interpolates `businessId`, `membershipId`, or `userId`. S7 tools will receive the trusted runtime context through server-side binding rather than model-visible tenant arguments.
+Tenant identifiers are runtime authorization data, not model instructions. Neither base nor generated instructions interpolate `businessId`, `membershipId`, or `userId`. The tool requires a server-created run capability containing the tenant-bound provider. Serialized client context cannot construct this capability. It is closed after execution and carries no state into the next run.
 
 ## Dynamic business behavior
 
@@ -43,12 +43,11 @@ The external LLM provider is an implementation dependency, not the owner of doma
 
 ## Structured result
 
-The application should receive structured information such as:
+The application receives a strict Zod-validated `AgentResult`: `reply`, `needsHuman`, `detectedIntent`, `reasonCode`, and `detectedLanguage`. The schema lives in `server/src/ai/agent-result.ts`; there is no confidence estimate or reasoning field.
 
-- reply;
-- needsHuman;
-- detectedIntent;
-- optional labels useful for evaluation or triage.
+Mastra 1.61 uses per-run `instructions` and `structuredOutput` with strict validation. Explicit schema prompt injection is the supported single-model compatibility path for tool calling plus structured output; the application consumes `result.object`, never regex-parsed reply prose. Internal `factReferences` are checked against this run's tool receipts and removed before returning AgentResult. Unknown references, confident price/availability answers without fresh entity evidence, and unverified references without uncertainty metadata fail closed. A structurally valid answer can still be semantically wrong; live model evaluations complement these deterministic checks.
+
+Each run has a six-step limit, a 60-second model deadline, a 2,000-output-token budget, and at most eight tool reads. Invalid output, provider failure, or context-budget failure rejects the invocation; callers must not send a partial answer. No WhatsApp transport or handoff action runs here.
 
 Downstream logic should not parse free-form prose to decide intent or handoff. Model-generated confidence or reasoning labels are not authorization and should not be the sole gate for risky actions.
 
