@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { BusinessDataProvider, CurrentFactMetadata } from '../../src/business-data/business-data-provider';
 import type { TenantContext } from '../../src/tenancy/tenant-context';
-import type { AgentCandidate } from '../../src/ai/agent-result';
 
 export const fakeTenant = (): TenantContext => ({
   userId: randomUUID(), businessId: randomUUID(), membershipId: randomUUID(), role: 'OWNER',
@@ -25,8 +24,4 @@ export const fakeProvider = (tenant: TenantContext, name = 'Atlas Cars'): Busine
   listEntityTypes: async () => [{ id: randomUUID(), key: 'vehicle', name: 'Vehicles', description: null, schemaVersion: 1, fieldCount: 1 }],
   searchEntities: async () => ({ items: [], limit: 5, offset: 0 }),
   getEntity: async () => null,
-});
-export const safeCandidate = (overrides: Partial<AgentCandidate> = {}): AgentCandidate => ({
-  reply: 'How can I help?', needsHuman: false, detectedIntent: 'GENERAL_QUESTION',
-  reasonCode: 'NONE', detectedLanguage: 'en', factReferences: [], ...overrides,
 });

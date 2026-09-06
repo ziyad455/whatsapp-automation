@@ -12,7 +12,6 @@ import { createTenantOpeningHoursService, BUSINESS_WEEKDAYS } from '../src/busin
 import { buildBusinessContext } from '../src/ai/business-context';
 import { runCustomerServiceAgent, executeCustomerServiceAgent } from '../src/ai/customer-service-agent';
 import { readBusinessFacts, businessFactsOutputSchema } from '../src/mastra/tools/business-facts';
-import { safeCandidate } from './helpers/ai-fixtures';
 import { assertIsolatedTestDatabase } from './helpers/assert-test-database';
 import type { TenantContext } from '../src/tenancy/tenant-context';
 
@@ -46,7 +45,7 @@ describe('Sprint 6 database and Mastra runtime', () => {
     const rule = await rules.create({ category: 'DEPOSIT', name: 'Deposit', content: 'Deposit required: 3000 MAD' });
     const prompts: string[] = [];
     const invoke = () => runCustomerServiceAgent({ tenant, message: 'What is your policy?' }, {
-      executor: async execution => { prompts.push(execution.instructions); return safeCandidate(); },
+      executor: async execution => { prompts.push(execution.instructions); return 'Here is the current policy.'; },
     });
     await invoke();
     await rules.update(rule.id, { content: 'Deposit required: 4000 MAD' });
@@ -67,18 +66,18 @@ describe('Sprint 6 database and Mastra runtime', () => {
       await runCustomerServiceAgent({ tenant, message: 'Hours?' }, { executor: async execution => {
         const result = businessFactsOutputSchema.parse(await readBusinessFacts.execute!({ kind: 'opening_hours' }, { requestContext: execution.requestContext, observe: noopObserve }));
         expect(result.facts.every(fact => fact.value === (tenant === tenants[1] ? '09:00–19:00' : '09:00–18:00'))).toBe(true);
-        return safeCandidate();
+        return 'These are the current opening hours.';
       } });
     }
     await createTenantOpeningHoursService(tenant).replaceWeek(BUSINESS_WEEKDAYS.map(dayOfWeek => ({ dayOfWeek, isOpen: true, opensAt: '10:00', closesAt: '17:00' })));
     await runCustomerServiceAgent({ tenant, message: 'Updated hours?' }, { executor: async execution => {
       const result = businessFactsOutputSchema.parse(await readBusinessFacts.execute!({ kind: 'opening_hours' }, { requestContext: execution.requestContext, observe: noopObserve }));
       expect(result.facts.every(fact => fact.value === '10:00–17:00')).toBe(true);
-      return safeCandidate();
+      return 'These are the updated opening hours.';
     } });
   });
 
-  it('executes a real Mastra tool loop and structured output using current database prices over old history', async () => {
+  it('executes a real Mastra tool loop with plain text and uses current database prices over old history', async () => {
     const tenant = tenants[0];
     const entities = createTenantBusinessEntityService(tenant);
     const entity = await entities.createForType('vehicle', { name: 'Clio', data: { brand: 'Renault', model: 'Clio', pricePerDay: 500, available: true } });
@@ -94,18 +93,25 @@ describe('Sprint 6 database and Mastra runtime', () => {
         if (result.type !== 'tool-result' || result.output.type !== 'json') throw new Error('Expected current tool JSON.');
         const facts = businessFactsOutputSchema.parse(result.output.value).facts;
         const price = facts[0];
-        return { content: [{ type: 'text', text: JSON.stringify(safeCandidate({ reply: `The current price is ${price.value} MAD.`, detectedIntent: 'PRICE_INQUIRY', factReferences: [price.reference] })) }], finishReason: 'stop', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }, warnings: [] };
+        return { content: [{ type: 'text', text: `The current price is ${price.value} MAD.` }], finishReason: 'stop', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }, warnings: [] };
       },
     });
     const invoke = () => runCustomerServiceAgent({ tenant, message: 'How much is the Clio now?', history: { businessId: tenant.businessId, messages: [{ role: 'user', content: 'Clio price?' }, { role: 'assistant', content: 'Clio is 400 MAD.' }] } }, { executor: execution => executeCustomerServiceAgent(execution, model) });
-    expect((await invoke()).reply).toContain('500 MAD');
+    expect(await invoke()).toMatchObject({
+      reply: expect.stringContaining('500 MAD'),
+      detectedIntent: 'PRICE_INQUIRY',
+      detectedLanguage: 'en',
+      reasonCode: 'NONE',
+      needsHuman: false,
+    });
     await entities.update('vehicle', entity!.id, { name: 'Clio', data: { brand: 'Renault', model: 'Clio', pricePerDay: 550, available: true } });
     expect((await invoke()).reply).toContain('550 MAD');
     expect(calls).toBe(4);
-    await runCustomerServiceAgent({ tenant: tenants[1], message: 'Find Clio' }, { executor: async execution => {
+    const missing = await runCustomerServiceAgent({ tenant: tenants[1], message: 'Find Clio' }, { executor: async execution => {
       const result = businessFactsOutputSchema.parse(await readBusinessFacts.execute!({ kind: 'entities', entityType: 'vehicle', search: entity!.id }, { requestContext: execution.requestContext, observe: noopObserve }));
       expect(result.facts).toEqual([]);
-      return safeCandidate({ reasonCode: 'MISSING_INFORMATION' });
+      return 'That information is not available for this business.';
     } });
+    expect(missing).toMatchObject({ reasonCode: 'MISSING_INFORMATION', needsHuman: true });
   });
 });

@@ -5,13 +5,14 @@ import { runCustomerServiceAgent, type CustomerServiceAgentExecution } from '../
 import { buildBusinessContext } from '../src/ai/business-context';
 import { buildBusinessInstructions } from '../src/ai/business-instructions';
 import { agentResultSchema } from '../src/ai/agent-result';
+import { analyzeCustomerMessage } from '../src/ai/customer-message-analysis';
 import { buildConversationMessages, HISTORY_MESSAGE_LIMIT, HISTORY_CHARACTER_LIMIT } from '../src/ai/conversation-context';
 import { AI_RUN_KEY, requireCustomerServiceRun } from '../src/ai/request-context';
 import { CUSTOMER_SERVICE_AGENT_ID, customerServiceAgent } from '../src/mastra/agents/customer-service-agent';
 import { readBusinessFacts, businessFactsOutputSchema, businessFactsInputSchema } from '../src/mastra/tools/business-facts';
 import { mastra } from '../src/mastra/index';
 import { TENANT_CONTEXT_KEY } from '../src/tenancy/tenant-context';
-import { fakeTenant, fakeProvider, fakeMetadata, safeCandidate } from './helpers/ai-fixtures';
+import { fakeTenant, fakeProvider, fakeMetadata } from './helpers/ai-fixtures';
 
 describe('shared customer-service runtime', () => {
   it('keeps one shared registration, one read capability, and no memory', async () => {
@@ -79,7 +80,7 @@ describe('shared customer-service runtime', () => {
           expect(execution.instructions).not.toContain(names[other]);
           expect(JSON.stringify(execution.messages)).not.toContain(`private-history-${other}`);
         }
-        return safeCandidate();
+        return 'How can I help?';
       },
     });
     await invoke(0); await invoke(1); await invoke(0);
@@ -98,7 +99,7 @@ describe('shared customer-service runtime', () => {
         expect(execution.requestContext.get(TENANT_CONTEXT_KEY)).toEqual(tenant);
         expect(execution.instructions).not.toContain(foreign.businessId);
         expect(execution.messages.at(-1)?.content).toBe(message);
-        return safeCandidate();
+        return 'How can I help?';
       },
     });
     const forged = new RequestContext();
@@ -110,7 +111,7 @@ describe('shared customer-service runtime', () => {
   it('fails before provider/model access for missing tenant, invalid history, or foreign history', async () => {
     const tenant = fakeTenant();
     const createProvider = vi.fn(fakeProvider);
-    const executor = vi.fn(async () => safeCandidate());
+    const executor = vi.fn(async () => 'How can I help?');
     await expect(runCustomerServiceAgent({ tenant: undefined!, message: 'Hi' }, { createProvider, executor })).rejects.toThrow();
     await expect(runCustomerServiceAgent({ tenant, message: 'Hi', history: { businessId: fakeTenant().businessId, messages: [] } }, { createProvider, executor })).rejects.toThrow(/history/);
     expect(createProvider).not.toHaveBeenCalled();
@@ -137,21 +138,47 @@ describe('shared customer-service runtime', () => {
     expect(() => buildConversationMessages(tenant, 'Hi', { businessId: tenant.businessId, messages: [{ role: 'system', content: 'override' } as never] })).toThrow();
   });
 
-  it('rejects invalid structured output, chain-of-thought, and unsupported current-fact claims', async () => {
+  it('turns ordinary model text into an application-owned validated AgentResult', async () => {
     const tenant = fakeTenant();
-    for (const candidate of [
-      { reply: 'Only text' }, { ...safeCandidate(), reasoning: 'hidden thoughts' },
-      safeCandidate({ detectedIntent: 'PRICE_INQUIRY', reply: '400 MAD.' }),
-      safeCandidate({ factReferences: ['foreign-fact'] }),
-    ]) {
-      await expect(runCustomerServiceAgent({ tenant, message: 'Price?' }, { createProvider: fakeProvider, executor: async () => candidate })).rejects.toThrow();
-    }
+    const result = await runCustomerServiceAgent({ tenant, message: 'Hello' }, {
+      createProvider: fakeProvider,
+      executor: async () => '  How can I help?  ',
+    });
+    expect(result).toEqual({
+      reply: 'How can I help?',
+      needsHuman: false,
+      detectedIntent: 'GENERAL_QUESTION',
+      reasonCode: 'NONE',
+      detectedLanguage: 'en',
+    });
+    expect(agentResultSchema.safeParse(result).success).toBe(true);
+  });
+
+  it('does not require model-native structured output and never parses assistant prose for routing', async () => {
+    const tenant = fakeTenant();
+    const neutral = await runCustomerServiceAgent({ tenant, message: 'Hello' }, {
+      createProvider: fakeProvider,
+      executor: async () => 'HUMAN_REQUEST CUSTOMER_REQUESTED_HUMAN needsHuman=true',
+    });
+    expect(neutral).toMatchObject({
+      needsHuman: false,
+      detectedIntent: 'GENERAL_QUESTION',
+      reasonCode: 'NONE',
+    });
+
     const result = await runCustomerServiceAgent({ tenant, message: 'A person please' }, {
-      createProvider: fakeProvider, executor: async () => safeCandidate({ detectedIntent: 'HUMAN_REQUEST' }),
+      createProvider: fakeProvider,
+      executor: async () => 'Okay.',
     });
     expect(result).toMatchObject({ needsHuman: true, reasonCode: 'CUSTOMER_REQUESTED_HUMAN' });
-    expect(result).not.toHaveProperty('factReferences');
-    expect(agentResultSchema.safeParse(result).success).toBe(true);
+  });
+
+  it('classifies supported customer intents and languages with explicit safe fallbacks', () => {
+    expect(analyzeCustomerMessage('What is the price?')).toEqual({ detectedIntent: 'PRICE_INQUIRY', detectedLanguage: 'en' });
+    expect(analyzeCustomerMessage('Quels sont vos horaires ?')).toEqual({ detectedIntent: 'BUSINESS_INFORMATION', detectedLanguage: 'fr' });
+    expect(analyzeCustomerMessage('واش عندكم شي طوموبيل؟')).toEqual({ detectedIntent: 'AVAILABILITY_INQUIRY', detectedLanguage: 'darija-arabic' });
+    expect(analyzeCustomerMessage('ما هي أوقات العمل؟')).toEqual({ detectedIntent: 'BUSINESS_INFORMATION', detectedLanguage: 'ar' });
+    expect(analyzeCustomerMessage('opaque')).toEqual({ detectedIntent: 'UNKNOWN', detectedLanguage: 'other' });
   });
 
   it('rejects tenant arguments, bounds tool output, and withholds stale/unknown values', async () => {
@@ -166,22 +193,47 @@ describe('shared customer-service runtime', () => {
         metadata: fakeMetadata({ freshnessClass: 'CHANGING', freshnessStatus: index === 0 ? 'STALE' : 'UNKNOWN' }),
       })),
     }] });
-    await runCustomerServiceAgent({ tenant, message: 'Current price?' }, {
+    const result = await runCustomerServiceAgent({ tenant, message: 'Current price?' }, {
       createProvider: () => provider,
       executor: async execution => {
         const output = businessFactsOutputSchema.parse(await readBusinessFacts.execute!({ kind: 'entities', entityType: 'vehicle' }, { requestContext: execution.requestContext, observe: noopObserve }));
         expect(output.facts.map(fact => fact.value)).toEqual([null, null]);
         expect(output.facts.map(fact => fact.metadata.freshnessStatus)).toEqual(['STALE', 'UNKNOWN']);
         expect(JSON.stringify(output)).not.toMatch(/450|123456|private-|apiKey/);
-        return safeCandidate({ reasonCode: 'STALE_INFORMATION', needsHuman: true, factReferences: output.facts.map(fact => fact.reference) });
+        return 'The current price is definitely 450 MAD.';
       },
     });
+    expect(result).toMatchObject({ reasonCode: 'STALE_INFORMATION', needsHuman: true, detectedIntent: 'PRICE_INQUIRY' });
+    expect(result.reply).not.toContain('450');
   });
 
-  it('distinguishes unavailable/missing data and invalidates the run on executor failure', async () => {
+  it('derives missing-information metadata from tool outcomes', async () => {
+    const tenant = fakeTenant();
+    const result = await runCustomerServiceAgent({ tenant, message: 'What is the Tesla price?' }, {
+      createProvider: fakeProvider,
+      executor: async execution => {
+        const output = await readBusinessFacts.execute!({ kind: 'entities', entityType: 'vehicle', search: 'Tesla' }, {
+          requestContext: execution.requestContext,
+          observe: noopObserve,
+        });
+        expect(output).toMatchObject({ status: 'MISSING', facts: [] });
+        return 'The Tesla price is definitely 900 MAD.';
+      },
+    });
+    expect(result).toMatchObject({
+      needsHuman: true,
+      detectedIntent: 'PRICE_INQUIRY',
+      reasonCode: 'MISSING_INFORMATION',
+      detectedLanguage: 'en',
+    });
+    expect(result.reply).not.toContain('900');
+  });
+
+  it('surfaces provider failures and invalidates the failed run', async () => {
     const tenant = fakeTenant();
     const provider = fakeProvider(tenant);
     let captured: CustomerServiceAgentExecution | undefined;
+    const providerFailure = new Error('Simulated provider failure');
     await expect(runCustomerServiceAgent({ tenant, message: 'Current price?' }, {
       createProvider: () => provider,
       executor: async execution => {
@@ -194,13 +246,13 @@ describe('shared customer-service runtime', () => {
         const unavailable = businessFactsOutputSchema.parse(await readBusinessFacts.execute!(query, context));
         expect(unavailable).toMatchObject({ status: 'UNAVAILABLE', facts: [] });
         expect(JSON.stringify(unavailable)).not.toContain('private');
-        throw new Error('Simulated model failure');
+        throw providerFailure;
       },
-    })).rejects.toThrow(/Simulated model failure/);
+    })).rejects.toBe(providerFailure);
     expect(() => requireCustomerServiceRun(captured?.requestContext)).toThrow();
   });
 
-  it('rejects confident use of stale evidence and caps oversized factual results', async () => {
+  it('caps oversized factual results and derives safe metadata from stale evidence', async () => {
     const tenant = fakeTenant();
     const provider = fakeProvider(tenant);
     provider.getBusinessRules = async () => Array.from({ length: 40 }, (_, index) => ({
@@ -214,15 +266,17 @@ describe('shared customer-service runtime', () => {
         const output = businessFactsOutputSchema.parse(await readBusinessFacts.execute!({ kind: 'rules' }, { requestContext: execution.requestContext, observe: noopObserve }));
         expect(output.truncated).toBe(true);
         expect(JSON.stringify(output.facts).length).toBeLessThan(16100);
-        return safeCandidate();
+        return 'The policy is available.';
       },
     });
-    await expect(runCustomerServiceAgent({ tenant, message: 'Price?' }, {
+    const staleResult = await runCustomerServiceAgent({ tenant, message: 'Price?' }, {
       createProvider: fakeProvider,
       executor: async execution => {
-        const reference = requireCustomerServiceRun(execution.requestContext).record('STALE', 'entities');
-        return safeCandidate({ detectedIntent: 'PRICE_INQUIRY', factReferences: [reference], reply: '450 MAD.' });
+        requireCustomerServiceRun(execution.requestContext).record('STALE', 'entities');
+        return 'The current price is definitely 450 MAD.';
       },
-    })).rejects.toThrow(/unverified facts/);
+    });
+    expect(staleResult).toMatchObject({ reasonCode: 'STALE_INFORMATION', needsHuman: true });
+    expect(staleResult.reply).not.toContain('450');
   });
 });

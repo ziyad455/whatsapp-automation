@@ -27,7 +27,7 @@ The application stores a reason such as CUSTOMER_REQUEST, LOW_CONFIDENCE, PURCHA
 
 Model confidence alone is not a reliable safety boundary. Tool outcomes, missing/stale states, explicit intent, and application rules should drive deterministic escalation decisions.
 
-The AI runtime currently returns `AgentResult.needsHuman` and a `reasonCode` only. A HUMAN_REQUEST intent forces `needsHuman=true` and CUSTOMER_REQUESTED_HUMAN; POLICY_REQUIRES_HUMAN and UNSUPPORTED_ACTION also force attention. Missing/stale data may call for clarification or a person depending on importance. These labels are inputs to future server-side handoff rules, not permissions or proof that a transfer happened. The runtime never changes conversation mode, notifies staff, or promises a connection/callback.
+The AI runtime currently returns `AgentResult.needsHuman` and a `reasonCode` only. Application logic—not assistant prose—forces a recognized HUMAN_REQUEST to `needsHuman=true` with CUSTOMER_REQUESTED_HUMAN. Complaints and unresolved missing, unavailable, stale, or unknown tool facts also conservatively request human attention; an ambiguous booking request remains CLARIFICATION_NEEDED. These labels are inputs to future server-side handoff rules, not permissions or proof that a transfer happened. The runtime never changes conversation mode, notifies staff, or promises a connection/callback.
 
 ## Takeover
 

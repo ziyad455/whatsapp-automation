@@ -12,7 +12,8 @@ The implemented agent has the stable Mastra ID `customer-service` and is registe
       -> shared agent
       -> tenant-bound tools
       -> current business data
-      -> structured result
+      -> model text reply
+      -> application-owned AgentResult
 
 The agent definition may be long-lived, but tenant context, tool bindings, and conversation input are request-scoped. Mutable business state must never be stored globally on the shared agent.
 
@@ -43,13 +44,13 @@ The external LLM provider is an implementation dependency, not the owner of doma
 
 ## Structured result
 
-The application receives a strict Zod-validated `AgentResult`: `reply`, `needsHuman`, `detectedIntent`, `reasonCode`, and `detectedLanguage`. The schema lives in `server/src/ai/agent-result.ts`; there is no confidence estimate or reasoning field.
+The application receives a strict Zod-validated `AgentResult`: `reply`, `needsHuman`, `detectedIntent`, `reasonCode`, and `detectedLanguage`. The schema lives in `server/src/ai/agent-result.ts`; there is no confidence estimate or reasoning field. The model produces only the customer-facing text reply. It does not own this application contract.
 
-Mastra 1.61 uses per-run `instructions` and `structuredOutput` with strict validation. Explicit schema prompt injection is the supported single-model compatibility path for tool calling plus structured output; the application consumes `result.object`, never regex-parsed reply prose. Internal `factReferences` are checked against this run's tool receipts and removed before returning AgentResult. Unknown references, confident price/availability answers without fresh entity evidence, and unverified references without uncertainty metadata fail closed. A structurally valid answer can still be semantically wrong; live model evaluations complement these deterministic checks.
+`runCustomerServiceAgent` consumes Mastra's plain `result.text`, normalizes its length, and constructs metadata from the current customer input plus application-observed tool outcomes. Explicit human requests are detected from customer input; missing, unavailable, stale, and fresh-fact states come from the run-local tool capability. Conservative `UNKNOWN` and `other` values are used when intent or language cannot be determined safely. Assistant prose is never parsed to decide routing or handoff, and a model cannot set `needsHuman` by printing a label. When current information lacks fresh evidence, application code replaces the untrusted reply with a deterministic localized confirmation message. The final object is validated at the application boundary.
 
-Each run has a six-step limit, a 60-second model deadline, a 2,000-output-token budget, and at most eight tool reads. Invalid output, provider failure, or context-budget failure rejects the invocation; callers must not send a partial answer. No WhatsApp transport or handoff action runs here.
+Each run has a six-step limit, a 60-second model deadline, a 2,000-output-token budget, and at most eight tool reads. An absent text reply, provider failure, or context-budget failure rejects the invocation; model-native structured-output variability does not. No WhatsApp transport or handoff action runs here.
 
-Downstream logic should not parse free-form prose to decide intent or handoff. Model-generated confidence or reasoning labels are not authorization and should not be the sole gate for risky actions.
+Downstream logic consumes only the validated metadata and must not parse free-form reply prose to decide intent or handoff. Model-generated confidence or reasoning labels are not authorization and cannot gate risky actions.
 
 ## Failure posture
 
