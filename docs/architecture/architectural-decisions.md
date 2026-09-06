@@ -8,7 +8,7 @@ A single application serves all businesses. This keeps deployment and operations
 
 Business behavior comes from request-scoped context, rules, and tools rather than hard-coded agents per company. The agent definition is shared; tenant state is not.
 
-The implementation registers one Mastra agent with ID `customer-service`. `runCustomerServiceAgent` builds stable BusinessContext and instructions per invocation, bounds authorized recent history, creates a fresh RequestContext, and returns strict AgentResult metadata. A single generic readBusinessFacts capability retrieves current facts through the authorized provider. The shared agent stores no current tenant or persistent memory. Limits, freshness projection, run-local evidence checks, and the distinction between model signals and server authorization are documented in [AI architecture](../ai/ai-architecture.md) and [agent context](../ai/agent-context.md).
+The implementation registers one Mastra agent with ID `customer-service`. `runCustomerServiceAgent` builds minimal BusinessContext and instructions per invocation, bounds authorized recent history, creates a fresh RequestContext, and returns strict application-owned AgentResult metadata. Six narrow business-information tools retrieve current facts through the authorized provider; none accepts tenant identity. The shared agent stores no current tenant or persistent memory. Limits, freshness projection, run-local evidence checks, and the distinction between model behavior and server authorization are documented in [AI architecture](../ai/ai-architecture.md) and [agent context](../ai/agent-context.md).
 
 ## React + Vite + TypeScript dashboard
 

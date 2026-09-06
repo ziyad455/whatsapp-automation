@@ -38,7 +38,8 @@ const PRICE_PHRASES = [
 ] as const;
 const AVAILABILITY_PHRASES = [
   ['available'], ['availability'], ['in', 'stock'], ['disponible'], ['disponibilité'], ['disponibilite'],
-  ['متوفر'], ['متوفرة'], ['متاحة'], ['واش', 'كاين'], ['واش', 'كاينة'], ['kayn'], ['kayna'],
+  ['متوفر'], ['متوفرة'], ['متاحة'], ['واش', 'كاين'], ['واش', 'كاينة'], ['واش', 'عندكم'],
+  ['kayn'], ['kayna'], ['wach', '3ndkom'],
 ] as const;
 const BUSINESS_INFORMATION_PHRASES = [
   ['hours'], ['open'], ['close'], ['address'], ['location'], ['policy'], ['rules'],
