@@ -13,5 +13,10 @@
   },
   "devDependencies": {
     "concurrently": "^10.0.5"
+  },
+  "dependencies": {
+    "@mastra/evals": "^1.10.0",
+    "@mastra/memory": "^1.28.2",
+    "@mastra/observability": "^1.17.5"
   }
 }

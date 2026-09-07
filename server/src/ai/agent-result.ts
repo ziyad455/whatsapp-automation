@@ -2,13 +2,15 @@ import { z } from 'zod';
 
 export const agentIntentSchema = z.enum([
   'GENERAL_QUESTION', 'BUSINESS_INFORMATION', 'PRICE_INQUIRY',
-  'AVAILABILITY_INQUIRY', 'BOOKING_INTENT', 'HUMAN_REQUEST', 'COMPLAINT', 'UNKNOWN',
+  'AVAILABILITY_INQUIRY', 'BOOKING_INTENT', 'HUMAN_REQUEST', 'COMPLAINT',
+  'OUT_OF_SCOPE', 'UNKNOWN',
 ]);
 export type AgentIntent = z.infer<typeof agentIntentSchema>;
 
 export const agentReasonCodeSchema = z.enum([
   'NONE', 'CLARIFICATION_NEEDED', 'MISSING_INFORMATION', 'STALE_INFORMATION',
   'CUSTOMER_REQUESTED_HUMAN', 'POLICY_REQUIRES_HUMAN', 'UNSUPPORTED_ACTION',
+  'OUT_OF_SCOPE',
 ]);
 export type AgentReasonCode = z.infer<typeof agentReasonCodeSchema>;
 

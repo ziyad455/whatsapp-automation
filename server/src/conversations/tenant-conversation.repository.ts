@@ -95,6 +95,11 @@ export const createTenantConversationRepository = (tenant: TenantContext) => ({
 
     return messages.reverse();
   },
+
+  deleteById: (conversationId: string) =>
+    prisma.conversation.deleteMany({
+      where: { id: conversationId, businessId: tenant.businessId },
+    }),
 });
 
 export type TenantConversationRepository = ReturnType<

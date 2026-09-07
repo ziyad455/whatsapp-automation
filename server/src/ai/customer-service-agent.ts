@@ -9,6 +9,9 @@ import { buildConversationMessages, type ConversationHistory, type ConversationM
 import { type AgentResult } from './agent-result';
 import { analyzeCustomerMessage } from './customer-message-analysis';
 import { AI_RUN_KEY, CustomerServiceRun, customerServiceTenantContextSchema, type CustomerServiceRequestContext } from './request-context';
+import type { AgentDiagnostics } from './agent-diagnostics';
+import { agentDiagnosticsSchema } from './agent-diagnostics';
+import { classifyCustomerScope, createOutOfScopeAgentResult } from './customer-scope';
 
 export interface CustomerServiceAgentInput {
   readonly tenant: TenantContext;
@@ -42,24 +45,52 @@ export interface CustomerServiceAgentDependencies {
   executor?: CustomerServiceAgentExecutor;
 }
 
-export const runCustomerServiceAgent = async (
+export interface CustomerServiceAgentDetailedResult {
+  readonly result: AgentResult;
+  readonly diagnostics: AgentDiagnostics;
+}
+
+export const runCustomerServiceAgentWithDiagnostics = async (
   input: CustomerServiceAgentInput,
   dependencies: CustomerServiceAgentDependencies = {},
-): Promise<AgentResult> => {
+): Promise<CustomerServiceAgentDetailedResult> => {
   const tenant = customerServiceTenantContextSchema.parse(input.tenant);
-  const messages = buildConversationMessages(tenant, input.message, input.history);
+  const originalMessages = buildConversationMessages(tenant, input.message, input.history);
   const messageAnalysis = analyzeCustomerMessage(input.message);
+  const scopeDecision = classifyCustomerScope(input.message, input.history);
   const createProvider = dependencies.createProvider ?? createDatabaseBusinessDataProvider;
   const business = await buildBusinessContext(tenant, createProvider);
+  if (scopeDecision.scope === 'OUT_OF_SCOPE') {
+    return {
+      result: createOutOfScopeAgentResult(business, messageAnalysis.detectedLanguage),
+      diagnostics: agentDiagnosticsSchema.parse({
+        scope: 'OUT_OF_SCOPE',
+        generationBypassed: true,
+        partiallyRelated: false,
+        toolCalls: [],
+      }),
+    };
+  }
+  const messages = scopeDecision.modelMessage === input.message
+    ? originalMessages
+    : buildConversationMessages(tenant, scopeDecision.modelMessage, input.history);
   const instructions = buildBusinessInstructions(business);
   const run = new CustomerServiceRun(tenant, business, createProvider(tenant));
   const requestContext = new RequestContext<CustomerServiceRequestContext>([[TENANT_CONTEXT_KEY, tenant]]);
   requestContext.setRaw(AI_RUN_KEY, run);
   try {
     const value = await (dependencies.executor ?? executeCustomerServiceAgent)({ messages, requestContext, instructions });
-    return run.finish(value, messageAnalysis);
+    return {
+      result: run.finish(value, messageAnalysis),
+      diagnostics: run.diagnostics(scopeDecision.partiallyRelated),
+    };
   } finally {
     run.close();
     requestContext.deleteRaw(AI_RUN_KEY);
   }
 };
+
+export const runCustomerServiceAgent = async (
+  input: CustomerServiceAgentInput,
+  dependencies: CustomerServiceAgentDependencies = {},
+): Promise<AgentResult> => (await runCustomerServiceAgentWithDiagnostics(input, dependencies)).result;

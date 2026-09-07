@@ -50,14 +50,16 @@ const GREETING_PHRASES = [
   ['hello'], ['hi'], ['hey'], ['bonjour'], ['bonsoir'], ['salut'], ['سلام'], ['salam'],
 ] as const;
 
-const DARIJA_ARABIC_WORDS = new Set(['واش', 'شحال', 'بغيت', 'عندكم', 'شي', 'كاين', 'كاينة', 'فين', 'عفاك', 'طوموبيل']);
-const DARIJA_LATIN_WORDS = new Set(['wach', 'chhal', 'bghit', '3ndkom', 'kayn', 'kayna', 'fin', 'afak', 'tomobil', 'bzaf']);
+const DARIJA_ARABIC_WORDS = new Set(['واش', 'شحال', 'بغيت', 'عندكم', 'شي', 'كاين', 'كاينة', 'فين', 'عفاك', 'طوموبيل', 'ليا', 'عطيني']);
+const DARIJA_LATIN_WORDS = new Set(['wach', 'chhal', 'bghit', '3ndkom', 'kayn', 'kayna', 'fin', 'afak', 'tomobil', 'bzaf', 'chra7', 'lia', 'kteb']);
 const ENGLISH_WORDS = new Set([
   'the', 'what', 'when', 'where', 'how', 'do', 'you', 'your', 'is', 'are', 'i', 'want', 'need',
   'talk', 'person', 'price', 'available', 'open', 'close', 'book', 'booking', 'current', 'daily',
-  'hello', 'hi', 'please',
+  'hello', 'hi', 'please', 'explain', 'write', 'solve', 'tell', 'give', 'debug', 'who',
+  'president', 'capital', 'history', 'poem', 'story', 'code', 'essay', 'physics',
+  'act', 'like', 'forget', 'ignore', 'answer', 'instructions', 'developer', 'mode', 'reveal', 'show',
 ]);
-const FRENCH_WORDS = new Set(['le', 'la', 'les', 'quel', 'quelle', 'quels', 'quelles', 'vos', 'votre', 'est', 'sont', 'prix', 'disponible', 'horaires', 'bonjour']);
+const FRENCH_WORDS = new Set(['le', 'la', 'les', 'quel', 'quelle', 'quels', 'quelles', 'vos', 'votre', 'est', 'sont', 'prix', 'disponible', 'horaires', 'bonjour', 'explique', 'écris', 'ecris', 'résous', 'resous', 'président', 'capitale', 'histoire', 'poème', 'poeme']);
 
 const countMatches = (tokens: readonly string[], words: ReadonlySet<string>): number =>
   tokens.reduce((count, token) => count + Number(words.has(token)), 0);

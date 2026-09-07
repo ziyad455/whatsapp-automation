@@ -7,6 +7,7 @@ import {
 import { requireAuthenticatedUser, requireTenantContext } from './request-context';
 import { dashboardAgentRoutes } from './dashboard-agent-routes';
 import { sprintFourRoutes } from './sprint-four-routes';
+import { aiPlaygroundRoutes } from './ai-playground-routes';
 
 export const applicationRoutes = [
   registerApiRoute('/auth/api/*', {
@@ -66,5 +67,6 @@ export const applicationRoutes = [
     },
   }),
   ...dashboardAgentRoutes,
+  ...aiPlaygroundRoutes,
   ...sprintFourRoutes,
 ];

@@ -12,6 +12,7 @@ const navigation = [
   { to: '/dashboard/data', label: 'Business data' },
   { to: '/dashboard/understanding', label: 'Understanding preview' },
   { to: '/dashboard/agent-chat', label: 'Agent chat' },
+  ...(import.meta.env.DEV ? [{ to: '/dashboard/ai-playground', label: 'AI playground' }] : []),
 ]
 
 function DashboardFrame() {
