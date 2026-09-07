@@ -5,6 +5,7 @@ import {
   resolveDashboardTenantContext,
 } from '../tenancy/dashboard-tenant-context';
 import { requireAuthenticatedUser, requireTenantContext } from './request-context';
+import { dashboardAgentRoutes } from './dashboard-agent-routes';
 import { sprintFourRoutes } from './sprint-four-routes';
 
 export const applicationRoutes = [
@@ -64,5 +65,6 @@ export const applicationRoutes = [
       });
     },
   }),
+  ...dashboardAgentRoutes,
   ...sprintFourRoutes,
 ];

@@ -15,6 +15,8 @@ These concepts have stable meaning across businesses and should use strongly typ
 
 Tenant-owned domain records are scoped by businessId even when they also reference a tenant-owned parent.
 
+Conversation and ConversationMessage are tenant-owned PostgreSQL records. Conversation identity combines business, channel, and channel participant; message ownership is reinforced by a same-business composite foreign key. Recent messages provide continuity but never override current BusinessDataProvider tool results.
+
 Normal application repositories receive a trusted TenantContext and derive `businessId` internally. Ownership is not part of create/update DTOs, and record-ID reads or writes include the tenant business ID in the database predicate. Global access is reserved for explicit infrastructure, provisioning, maintenance, and tenant-resolution boundaries.
 
 `BusinessUser` illustrates both sides of this boundary: the membership lookup used to create TenantContext legitimately runs before context exists, while normal post-resolution membership data access is tenant-bound.

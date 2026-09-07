@@ -2,6 +2,7 @@ import { BrowserRouter, NavLink, Navigate, Outlet, Route, Routes } from 'react-r
 import './App.css'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { DashboardLayout } from './layout/DashboardLayout'
+import { AgentChatPage } from './pages/AgentChatPage'
 import { BusinessProfilePage } from './pages/BusinessProfilePage'
 import { BusinessRulesPage } from './pages/BusinessRulesPage'
 import { BusinessUnderstandingPage } from './pages/BusinessUnderstandingPage'
@@ -44,6 +45,7 @@ function App() {
             <Route path="data/:entityTypeKey/:entityId/edit" element={<EntityFormPage />} />
             <Route path="schema/:entityTypeKey" element={<SchemaEditorPage />} />
             <Route path="understanding" element={<BusinessUnderstandingPage />} />
+            <Route path="agent-chat" element={<AgentChatPage />} />
           </Route>
         </Route>
         <Route path="*" element={<NotFoundPage />} />

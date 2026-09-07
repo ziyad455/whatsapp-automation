@@ -92,6 +92,54 @@ export interface FieldIssue {
   message: string
 }
 
+export type AgentIntent =
+  | 'GENERAL_QUESTION'
+  | 'BUSINESS_INFORMATION'
+  | 'PRICE_INQUIRY'
+  | 'AVAILABILITY_INQUIRY'
+  | 'BOOKING_INTENT'
+  | 'HUMAN_REQUEST'
+  | 'COMPLAINT'
+  | 'UNKNOWN'
+
+export type AgentReasonCode =
+  | 'NONE'
+  | 'CLARIFICATION_NEEDED'
+  | 'MISSING_INFORMATION'
+  | 'STALE_INFORMATION'
+  | 'CUSTOMER_REQUESTED_HUMAN'
+  | 'POLICY_REQUIRES_HUMAN'
+  | 'UNSUPPORTED_ACTION'
+
+export type AgentLanguage =
+  | 'darija-arabic'
+  | 'darija-latin'
+  | 'ar'
+  | 'fr'
+  | 'en'
+  | 'mixed'
+  | 'other'
+
+export interface AgentResult {
+  reply: string
+  needsHuman: boolean
+  detectedIntent: AgentIntent
+  reasonCode: AgentReasonCode
+  detectedLanguage: AgentLanguage
+}
+
+export interface AgentConversationMessage {
+  id: string
+  role: 'customer' | 'assistant'
+  content: string
+  createdAt: string
+}
+
+export interface AgentConversation {
+  id: string
+  messages: AgentConversationMessage[]
+}
+
 export interface BusinessUnderstanding {
   profile: Omit<BusinessProfile, 'id'> | null
   openingHours: OpeningHour[]
