@@ -1,4 +1,6 @@
 import type {
+  AgentConversation,
+  AgentResult,
   BusinessEntity,
   BusinessEntityType,
   BusinessFieldDefinition,
@@ -72,6 +74,20 @@ async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Pro
 
 export const dashboardApi = {
   listBusinesses: () => apiRequest<{ businesses: BusinessSummary[] }>('/businesses'),
+  getAgentConversation: (businessId: string) =>
+    apiRequest<{ conversation: AgentConversation | null }>('/dashboard/agent-chat', {
+      businessId,
+    }),
+  sendAgentMessage: (
+    businessId: string,
+    message: string,
+    conversationId?: string,
+  ) =>
+    apiRequest<{ conversationId: string; result: AgentResult }>('/dashboard/agent-chat', {
+      method: 'POST',
+      businessId,
+      body: { message, ...(conversationId ? { conversationId } : {}) },
+    }),
   getProfile: (businessId: string) =>
     apiRequest<{ profile: BusinessProfile }>('/dashboard/business-profile', { businessId }),
   updateProfile: (businessId: string, profile: Omit<BusinessProfile, 'id' | 'category'>) =>

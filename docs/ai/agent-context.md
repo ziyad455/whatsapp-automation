@@ -17,9 +17,9 @@ The shared customer-service agent declares a runtime schema for the canonical Te
 
 ## Bounded conversation input
 
-The server-only invocation API accepts the current `message` and optional trusted `history` tagged with its business ID. It rejects a tenant mismatch and permits only text `user`/`assistant` messages, never caller-supplied system or tool messages. A future persisted conversation loader must authorize the business/thread before supplying this history; a client-supplied ownership tag is not proof of authorization.
+The server-only invocation API accepts the current `message` and optional trusted `history` tagged with its business ID. It rejects a tenant mismatch and permits only text `user`/`assistant` messages, never caller-supplied system or tool messages. The shared conversation boundary loads this history from tenant-scoped persistence only after authorizing the conversation's business, channel, and participant identity. A client-supplied conversation ID or ownership tag is not proof of authorization.
 
-Initial history policy: keep at most 12 recent messages and 12,000 history characters, plus the current message; every message is limited to 4,000 characters. Keep a contiguous recent suffix and drop a leading orphan assistant answer. These application constants live in `conversation-context.ts` and should be tuned through evaluations. History supports references such as “the first one” but cannot verify an old price. No threads, semantic recall, RAG, or persistent Mastra memory are introduced.
+Initial agent-history policy: load at most 12 recent persisted messages and then enforce at most 12,000 history characters, plus the current message; every message is limited to 4,000 characters. Keep a contiguous recent suffix and drop a leading orphan assistant answer. These application constants live in `conversation-context.ts` and should be tuned through evaluations. History supports references such as “the first one” but cannot verify an old price. PostgreSQL conversation history is not global Mastra memory; semantic recall and RAG are not introduced.
 
 ## Appropriate context
 
@@ -71,4 +71,4 @@ An earlier message may show what was said, not what is currently true. Generated
 ## Open Questions
 
 - The initial 12-message history window is bounded but still needs pilot evaluation for long or complex conversations.
-- Persisted conversation/thread ownership and authoritative conversation-mode loading belong to the conversation sprint.
+- Dashboard conversation persistence is implemented; customer identity, mode/status, assignment, and transport delivery state remain for the later conversation/WhatsApp work.

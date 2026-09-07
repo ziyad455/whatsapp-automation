@@ -11,6 +11,7 @@ const navigation = [
   { to: '/dashboard/rules', label: 'Business rules' },
   { to: '/dashboard/data', label: 'Business data' },
   { to: '/dashboard/understanding', label: 'Understanding preview' },
+  { to: '/dashboard/agent-chat', label: 'Agent chat' },
 ]
 
 function DashboardFrame() {

@@ -13,7 +13,7 @@ import { AI_RUN_KEY, CustomerServiceRun, customerServiceTenantContextSchema, typ
 export interface CustomerServiceAgentInput {
   readonly tenant: TenantContext;
   readonly message: string;
-  // Trusted application history; future conversation loader must authorize its tenant/thread.
+  // Trusted application history; the conversation boundary authorizes its tenant/thread.
   readonly history?: ConversationHistory;
 }
 

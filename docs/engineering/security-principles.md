@@ -18,6 +18,8 @@ Authentication identifies the user; BusinessUser membership authorizes tenant ac
 
 Dashboard authentication uses Better Auth server-side sessions and HttpOnly, host-only cookies. The server accepts credential/session requests only from the configured dashboard origin, enables credentialed CORS for that exact origin, and requires HTTPS origins except for loopback development. Public sign-up is disabled. React never reads the session token, and protected UI routes do not replace server-side authentication or membership checks.
 
+The dashboard agent channel accepts customer message content and an optional server-issued conversation ID in its JSON body. Its business selection remains the existing untrusted header, which is re-authorized against the verified user's membership before the shared runtime receives `TenantContext`. Conversation IDs are selectors, not authorization: reads and continuations require matching business, `DASHBOARD` channel, and authenticated-user participant. Future channel adapters must resolve tenant and conversation identity from their own verified transport data and must not reuse browser selectors as trusted context.
+
 For tenant-scoped dashboard APIs, `x-business-id` is an untrusted selection hint. The server combines it only with the user ID established by Better Auth and authorizes the compound `BusinessUser` membership before business work begins. It ignores client-supplied user IDs, membership IDs, roles, and tenant request-context values. Cross-tenant, unknown, and malformed selectors receive the same non-enumerating forbidden response.
 
 WhatsApp webhook authenticity and phoneNumberId mapping form a separate machine-to-machine tenant-resolution path.

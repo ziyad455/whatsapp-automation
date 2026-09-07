@@ -4,16 +4,20 @@
 
 The platform uses one shared Mastra customer-service agent definition for all businesses. It does not create hard-coded agents or source branches per tenant.
 
-The implemented agent has the stable Mastra ID `customer-service` and is registered once. Its base instructions and model are tenant-neutral. Application code invokes it through `runCustomerServiceAgent`, which builds minimal identity/routing configuration and bounded history, then creates a fresh validated Mastra `RequestContext` for every run. Six narrow read tools retrieve current profile, hours, active rules, dynamic types, entity search results, and exact entities; persistent memory remains disabled.
+The implemented agent has the stable Mastra ID `customer-service` and is registered once. Its base instructions and model are tenant-neutral. Channel adapters invoke `runCustomerServiceConversation` with trusted tenant and conversation identity; it persists messages, loads bounded authorized history, and delegates to `runCustomerServiceAgent`. The agent invocation builds minimal identity/routing configuration and creates a fresh validated Mastra `RequestContext` for every run. Six narrow read tools retrieve current profile, hours, active rules, dynamic types, entity search results, and exact entities; global or model-owned persistent memory remains disabled.
 
     authorized request
       -> TenantContext
+      -> authorized Conversation
+      -> bounded persisted history
       -> runtime BusinessContext
       -> shared agent
       -> tenant-bound tools
       -> current business data
       -> model text reply
       -> application-owned AgentResult
+
+Channel adapters own authentication, tenant resolution, and channel conversation identity before this flow. The dashboard adapter uses a verified Better Auth session, authorized membership selection, and authenticated user participant. The future WhatsApp adapter will use a verified Meta event, receiving `phoneNumberId`, and customer identity. Neither channel duplicates conversation processing or the agent, and neither supplies tenant identity through model-visible input.
 
 The agent definition may be long-lived, but tenant context, tool bindings, and conversation input are request-scoped. Mutable business state must never be stored globally on the shared agent.
 

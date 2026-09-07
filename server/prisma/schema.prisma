@@ -104,6 +104,20 @@ enum BusinessWeekday {
   @@map("business_weekday")
 }
 
+enum ConversationChannel {
+  DASHBOARD
+  WHATSAPP
+
+  @@map("conversation_channel")
+}
+
+enum ConversationMessageRole {
+  CUSTOMER
+  ASSISTANT
+
+  @@map("conversation_message_role")
+}
+
 model Business {
   id                       String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                     String                  @db.Text
@@ -129,8 +143,44 @@ model Business {
   openingHours             BusinessOpeningHour[]
   rules                    BusinessRule[]
   auditEvents              AuditEvent[]
+  conversations            Conversation[]
+  conversationMessages     ConversationMessage[]
 
   @@map("businesses")
+}
+
+model Conversation {
+  id             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId     String              @map("business_id") @db.Uuid
+  channel        ConversationChannel
+  participantKey String              @map("participant_key") @db.Text
+  messageCount   Int                 @default(0) @map("message_count")
+  lastMessageAt  DateTime            @default(now()) @map("last_message_at") @db.Timestamptz(6)
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  business       Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  messages       ConversationMessage[]
+
+  @@unique([businessId, id], map: "conversations_business_id_id_unique")
+  @@unique([businessId, channel, participantKey], map: "conversations_business_channel_participant_unique")
+  @@index([businessId, lastMessageAt], map: "conversations_business_id_last_message_at_index")
+  @@map("conversations")
+}
+
+model ConversationMessage {
+  id             String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId     String                  @map("business_id") @db.Uuid
+  conversationId String                  @map("conversation_id") @db.Uuid
+  sequence       Int
+  role           ConversationMessageRole
+  content        String                  @db.Text
+  createdAt      DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  business       Business                @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  conversation   Conversation            @relation(fields: [businessId, conversationId], references: [businessId, id], onDelete: Cascade)
+
+  @@unique([businessId, conversationId, sequence], map: "conversation_messages_business_conversation_sequence_unique")
+  @@index([businessId, conversationId, createdAt], map: "conversation_messages_business_conversation_created_index")
+  @@map("conversation_messages")
 }
 
 model BusinessOpeningHour {

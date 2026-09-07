@@ -11,7 +11,7 @@ dashboard/ is the React + Vite + TypeScript application for business owners and 
 - dynamic entity-type inspection and schema-driven forms;
 - create, edit, inspect, and archive business entities;
 - a human-readable preview of what the system currently knows;
-- an internal AI playground for development/testing access;
+- a persistent customer-service conversation channel backed by the shared runtime;
 - conversation inbox, attention queue, detail view, mode controls, and manual replies;
 - lead, follow-up, customer-history, campaign, and analytics views;
 - later onboarding, staff roles, synchronization health, and platform administration.
@@ -53,10 +53,12 @@ Operational screens must distinguish loading, empty, stale, failed, attention-re
 
 React Router owns client-side navigation. `/login` uses the Better Auth React client for email/password sign-in, `/dashboard` is session-guarded and supports sign-out, `/` redirects to `/login`, and unknown paths render a not-found page. Session cookies remain HttpOnly and are never copied into React state or browser storage. The route guard improves navigation and loading behavior; the server remains the authorization boundary.
 
-The dashboard uses a compact operational layout with profile, opening-hours, rules, dynamic-data, schema-editor, and business-understanding routes. A centralized credentialed API client adds `x-business-id` only after the user explicitly selects an accessible business. The selection may be remembered locally for navigation continuity, but every request is independently authorized by the server. Server error details are mapped to accessible form messages without exposing internal errors.
+The dashboard uses a compact operational layout with profile, opening-hours, rules, dynamic-data, schema-editor, business-understanding, and agent-chat routes. The agent-chat screen loads the authenticated user's tenant-bound dashboard conversation, sends its server-issued conversation ID on later turns, renders persisted customer and assistant messages, and may show safe `AgentResult` metadata for new replies. The browser does not supply history or authorization: the server authorizes the conversation and loads bounded recent history before invoking the shared runtime. Prompts, tool payloads, and `TenantContext` are never exposed.
+
+A centralized credentialed API client adds `x-business-id` only after the user explicitly selects an accessible business. The selection may be remembered locally for navigation continuity, but every request is independently authorized by the server. Server error details are mapped to accessible form messages without exposing internal errors.
 
 ## Open Questions
 
 - Whether active-business selection should be synchronized across devices is not yet defined; the current preference is browser-local.
 - The current operational visual system is intentionally small and CSS-based; the threshold for extracting a reusable component library is not yet defined.
-- Which AI diagnostics are exposed in the internal playground versus platform-admin tooling needs definition.
+- Which AI diagnostics belong in business-facing conversation views versus platform-admin tooling needs definition.

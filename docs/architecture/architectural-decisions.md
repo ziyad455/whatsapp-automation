@@ -24,6 +24,10 @@ Authentication proves identity only. `BusinessUser` membership and role checks a
 
 Tenant-scoped dashboard requests send `x-business-id` as an untrusted selector. After Better Auth establishes identity, the server resolves exactly one `BusinessUser` row through its `(userId, businessId)` unique key and constructs a request-scoped `TenantContext` from database-owned membership data. There is no single-membership fallback, and invalid or unauthorized selections fail closed without business enumeration. Business lifecycle status is intentionally not enforced by the resolver until its action semantics are defined.
 
+## Permanent channel adapters around one AI runtime
+
+Dashboard chat and WhatsApp are independent, permanent entry channels. Each adapter authenticates its own transport and resolves a trusted `TenantContext` plus a channel-specific conversation identity before invoking `runCustomerServiceConversation`. The shared boundary owns persisted bounded history, agent invocation, tools, provider, freshness rules, safety behavior, and `AgentResult`; it does not resolve tenants or depend on the originating channel. Dashboard chat identifies its conversation with the verified Better Auth user inside the selected authorized business. Future WhatsApp handling will use the verified receiving `phoneNumberId` to resolve the business and a customer identity to resolve the conversation.
+
 ## Mastra custom routes without Express
 
 Mastra is the backend runtime for HTTP routes, agents, tools, and workflows. A second Express application is postponed until a concrete limitation justifies it.

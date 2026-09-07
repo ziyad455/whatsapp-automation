@@ -17,6 +17,25 @@ The requested business must be derived from an authorized membership selection. 
 
 Business configuration requests then load or change profile, regular hours, rules, generic schemas, or generic entities through their owning services. The read-only business-understanding route assembles those current sources at request time and does not read or write a duplicated context document.
 
+## Dashboard agent chat
+
+    React agent chat
+      -> Better Auth verifies the HttpOnly session
+      -> x-business-id is authorized against BusinessUser membership
+      -> dashboard channel adapter constructs trusted TenantContext
+      -> resolve dashboard conversation by tenant + channel + authenticated user
+      -> validate optional conversationId against that trusted identity
+      -> persist inbound customer message
+      -> load bounded recent persisted history
+      -> runCustomerServiceConversation
+      -> runCustomerServiceAgent
+      -> shared tenant-bound tools and BusinessDataProvider
+      -> application-owned AgentResult
+      -> persist assistant reply
+      -> conversationId, safe reply, and routing metadata returned to React
+
+The dashboard cannot submit tenant identity or history in the message body. It may send a server-issued conversation ID, but that ID is only a selector: the server requires the conversation's business, channel, and participant identity to match the resolved TenantContext and authenticated user. Refreshing the page reloads a bounded transcript from PostgreSQL. The shared conversation runtime receives only server-authorized history.
+
 ## WhatsApp inbound request
 
     Meta webhook
@@ -32,6 +51,8 @@ Business configuration requests then load or change profile, regular hours, rule
       -> persist and send outbound message
 
 Raw Meta payload details stop at the transport adapter. Domain and AI code use normalized internal messages.
+
+Dashboard and WhatsApp tenant and conversation resolution remain transport-specific. They converge after each channel has produced a canonical trusted `TenantContext` and authorized conversation identity, then call the same conversation runtime.
 
 ## AI fact lookup
 
@@ -51,7 +72,7 @@ Raw Meta payload details stop at the transport adapter. Domain and AI code use n
 
 The model does not provide businessId to the tool.
 
-The implemented boundary returns a Zod-validated AgentResult using six narrow read capabilities for profile, hours, active rules, dynamic type discovery, entity search, and exact entity lookup. The model supplies the normal reply text; application code owns intent/language normalization, routing/handoff metadata, and localized safe substitution when current facts lack fresh evidence. Persistent conversation state, transport, and handoff remain later tasks. Callers enter through the application invocation boundary with trusted TenantContext and authorized history; arbitrary request payload fields and message text are not tenant resolution. The run capability is invalidated after completion or failure.
+The implemented boundary returns a Zod-validated AgentResult using six narrow read capabilities for profile, hours, active rules, dynamic type discovery, entity search, and exact entity lookup. The model supplies the normal reply text; application code owns intent/language normalization, routing/handoff metadata, and localized safe substitution when current facts lack fresh evidence. Dashboard conversation history is persisted and authorized; WhatsApp transport, customer mapping, conversation modes, and handoff remain later tasks. Callers enter through the application invocation boundary with trusted TenantContext and authorized history; arbitrary request payload fields and message text are not tenant resolution. The run capability is invalidated after completion or failure.
 
 The initial provider is DatabaseBusinessDataProvider. Every call delegates to current tenant-scoped services and performs the required PostgreSQL reads at call time. Source and freshness status travel with factual results; no agent, module global, or session-held context blob substitutes for that lookup.
 
