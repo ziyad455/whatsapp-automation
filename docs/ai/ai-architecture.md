@@ -40,6 +40,8 @@ Changing business configuration should change the next relevant behavior without
 
 The target conversation styles are Moroccan Darija, Arabic, French, English, and mixed-language messages. The agent should normally respond naturally in the customer's language or style while preserving business policy and fact-grounding rules.
 
+The customer-facing voice is a concise business staff member, not a system operator. Fresh facts are stated directly without narrating tools, databases, records, provider metadata, or verification mechanics. Simple questions receive short paragraphs; lists are reserved for several options, repeated field labels are avoided, and generic support closers are not appended automatically. Missing or stale facts still receive brief natural uncertainty and staff-confirmation language. This is a presentation rule only: trusted tool receipts and application-owned routing metadata continue to determine safety.
+
 Language matching never weakens validation, authorization, tool scoping, or handoff behavior.
 
 ## Provider boundary

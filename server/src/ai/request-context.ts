@@ -40,13 +40,13 @@ export interface FactLookupReceipt {
 }
 
 const UNVERIFIED_REPLY: Readonly<Record<AgentLanguage, string>> = {
-  'darija-arabic': 'ما قدرتش نتأكد من هاد المعلومة دابا. عفاك تأكد منها مع طاقم المحل.',
-  'darija-latin': "Ma qdertch nt2kked men had lma3louma daba. 3afak t2kked m3a l'équipe.",
-  ar: 'لا أستطيع التحقق من هذه المعلومة حالياً. يرجى التأكد منها مع فريق العمل.',
-  fr: "Je ne peux pas vérifier cette information pour le moment. Merci de demander confirmation à l'équipe.",
-  en: "I can't verify that information right now. Please ask the business staff to confirm.",
-  mixed: "Ma qdertch nt2kked men had l'information daba. Merci de demander confirmation à l'équipe.",
-  other: "I can't verify that information right now. Please ask the business staff to confirm.",
+  'darija-arabic': 'ما عنديش معلومة مؤكدة على هاد الشي دابا. الفريق خاصو يتأكد ليك منها.',
+  'darija-latin': "Ma 3ndich confirmation 3la hadchi daba. L'équipe khasha t2kked lik.",
+  ar: 'ليست لدي معلومة مؤكدة عن ذلك الآن. سيحتاج الفريق إلى التحقق منها.',
+  fr: "Je n'ai pas d'information confirmée là-dessus pour le moment. L'équipe devra vérifier.",
+  en: "I don't have confirmed information on that right now. The team will need to check.",
+  mixed: "Ma 3ndich confirmation 3la had l'information daba. L'équipe devra vérifier.",
+  other: "I don't have confirmed information on that right now. The team will need to check.",
 };
 
 // A server-created capability, not serializable client configuration. Private fields keep
