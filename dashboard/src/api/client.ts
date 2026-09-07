@@ -1,5 +1,6 @@
 import type {
   AgentConversation,
+  AgentDiagnostics,
   AgentResult,
   BusinessEntity,
   BusinessEntityType,
@@ -87,6 +88,28 @@ export const dashboardApi = {
       method: 'POST',
       businessId,
       body: { message, ...(conversationId ? { conversationId } : {}) },
+    }),
+  getAiPlaygroundConversation: (businessId: string) =>
+    apiRequest<{ conversation: AgentConversation | null }>('/dashboard/ai-playground', {
+      businessId,
+    }),
+  sendAiPlaygroundMessage: (
+    businessId: string,
+    message: string,
+    conversationId?: string,
+  ) =>
+    apiRequest<{ conversationId: string; result: AgentResult; diagnostics: AgentDiagnostics }>(
+      '/dashboard/ai-playground',
+      {
+        method: 'POST',
+        businessId,
+        body: { message, ...(conversationId ? { conversationId } : {}) },
+      },
+    ),
+  resetAiPlayground: (businessId: string) =>
+    apiRequest<{ reset: true }>('/dashboard/ai-playground', {
+      method: 'DELETE',
+      businessId,
     }),
   getProfile: (businessId: string) =>
     apiRequest<{ profile: BusinessProfile }>('/dashboard/business-profile', { businessId }),

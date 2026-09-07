@@ -100,6 +100,7 @@ export type AgentIntent =
   | 'BOOKING_INTENT'
   | 'HUMAN_REQUEST'
   | 'COMPLAINT'
+  | 'OUT_OF_SCOPE'
   | 'UNKNOWN'
 
 export type AgentReasonCode =
@@ -110,6 +111,7 @@ export type AgentReasonCode =
   | 'CUSTOMER_REQUESTED_HUMAN'
   | 'POLICY_REQUIRES_HUMAN'
   | 'UNSUPPORTED_ACTION'
+  | 'OUT_OF_SCOPE'
 
 export type AgentLanguage =
   | 'darija-arabic'
@@ -126,6 +128,25 @@ export interface AgentResult {
   detectedIntent: AgentIntent
   reasonCode: AgentReasonCode
   detectedLanguage: AgentLanguage
+}
+
+export interface AgentToolCallDiagnostic {
+  tool:
+    | 'getBusinessProfile'
+    | 'getOpeningHours'
+    | 'getBusinessRules'
+    | 'listEntityTypes'
+    | 'searchBusinessEntities'
+    | 'getBusinessEntity'
+  outcome: 'FOUND' | 'MISSING' | 'UNAVAILABLE' | 'INVALID_QUERY'
+  freshness: 'FRESH' | 'STALE' | 'UNKNOWN' | null
+}
+
+export interface AgentDiagnostics {
+  scope: 'BUSINESS_RELATED' | 'OUT_OF_SCOPE'
+  generationBypassed: boolean
+  partiallyRelated: boolean
+  toolCalls: AgentToolCallDiagnostic[]
 }
 
 export interface AgentConversationMessage {

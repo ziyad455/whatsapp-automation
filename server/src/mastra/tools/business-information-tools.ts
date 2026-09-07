@@ -5,6 +5,7 @@ import type { FreshnessStatus } from '../../business-data/freshness';
 import { DynamicEntityQueryError } from '../../business-data/tenant-business-entity-query.service';
 import { checkBusinessInformation, businessInformationCheckSchema } from '../../ai/business-information';
 import { customerServiceRequestContextSchema, requireCustomerServiceRun, type CustomerServiceRun } from '../../ai/request-context';
+import type { CustomerServiceToolName } from '../../ai/agent-diagnostics';
 
 export const emptyBusinessInformationInputSchema = z.object({}).strict();
 const entityTypeSchema = z.string().trim().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/);
@@ -46,19 +47,23 @@ const metadataForModel = (metadata: CurrentFactMetadata) => modelFactMetadataSch
 
 const recordInformation = (
   run: CustomerServiceRun,
+  tool: CustomerServiceToolName,
   kind: 'profile' | 'opening_hours' | 'rules' | 'entity_types' | 'entities',
   status: 'FOUND' | 'MISSING' | 'UNAVAILABLE' | 'INVALID_QUERY',
   metadata: readonly { freshnessStatus: FreshnessStatus }[] = [],
 ) => {
   run.recordLookup(status, kind);
   for (const item of metadata) run.record(item.freshnessStatus, kind);
-  return checkBusinessInformation(status, metadata.map(item => item.freshnessStatus));
+  const information = checkBusinessInformation(status, metadata.map(item => item.freshnessStatus));
+  run.recordToolCall(tool, status, status === 'FOUND' ? information.freshnessStatus : null);
+  return information;
 };
 
 const unavailableInformation = (
   run: CustomerServiceRun,
+  tool: CustomerServiceToolName,
   kind: 'profile' | 'opening_hours' | 'rules' | 'entity_types' | 'entities',
-) => recordInformation(run, kind, 'UNAVAILABLE');
+) => recordInformation(run, tool, kind, 'UNAVAILABLE');
 
 const projectField = (field: CurrentBusinessEntityField) => {
   const value = modelValueSchema.safeParse(field.value);
@@ -122,14 +127,14 @@ export const getBusinessProfile = createTool({
       const profile = await run.provider.getBusinessProfile();
       if (!profile) {
         return businessProfileOutputSchema.parse({
-          information: recordInformation(run, 'profile', 'MISSING'),
+          information: recordInformation(run, 'getBusinessProfile', 'profile', 'MISSING'),
           profile: null,
         });
       }
       run.assertBusinessId(profile.id);
       const current = profile.metadata.freshnessStatus === 'FRESH';
       return businessProfileOutputSchema.parse({
-        information: recordInformation(run, 'profile', 'FOUND', [profile.metadata]),
+        information: recordInformation(run, 'getBusinessProfile', 'profile', 'FOUND', [profile.metadata]),
         profile: {
           name: profile.name.slice(0, 200),
           category: profile.category.slice(0, 100),
@@ -145,7 +150,7 @@ export const getBusinessProfile = createTool({
       });
     } catch {
       return businessProfileOutputSchema.parse({
-        information: unavailableInformation(run, 'profile'),
+        information: unavailableInformation(run, 'getBusinessProfile', 'profile'),
         profile: null,
       });
     }
@@ -174,7 +179,7 @@ export const getOpeningHours = createTool({
     const run = requireCustomerServiceRun(context?.requestContext);
     try {
       const hours = (await run.provider.getOpeningHours()).slice(0, 7);
-      const information = recordInformation(run, 'opening_hours', hours.length ? 'FOUND' : 'MISSING', hours.map(hour => hour.metadata));
+      const information = recordInformation(run, 'getOpeningHours', 'opening_hours', hours.length ? 'FOUND' : 'MISSING', hours.map(hour => hour.metadata));
       return openingHoursOutputSchema.parse({
         information,
         hours: hours.map(hour => {
@@ -190,7 +195,7 @@ export const getOpeningHours = createTool({
       });
     } catch {
       return openingHoursOutputSchema.parse({
-        information: unavailableInformation(run, 'opening_hours'),
+        information: unavailableInformation(run, 'getOpeningHours', 'opening_hours'),
         hours: [],
       });
     }
@@ -235,13 +240,13 @@ export const getBusinessRules = createTool({
         rules.push(projected);
       }
       return businessRulesOutputSchema.parse({
-        information: recordInformation(run, 'rules', source.length ? 'FOUND' : 'MISSING', source.slice(0, rules.length).map(rule => rule.metadata)),
+        information: recordInformation(run, 'getBusinessRules', 'rules', source.length ? 'FOUND' : 'MISSING', source.slice(0, rules.length).map(rule => rule.metadata)),
         truncated: source.length > rules.length,
         rules,
       });
     } catch {
       return businessRulesOutputSchema.parse({
-        information: unavailableInformation(run, 'rules'),
+        information: unavailableInformation(run, 'getBusinessRules', 'rules'),
         truncated: false,
         rules: [],
       });
@@ -276,13 +281,13 @@ export const listEntityTypes = createTool({
         description: type.description?.slice(0, 300) ?? null,
       }));
       return entityTypesOutputSchema.parse({
-        information: recordInformation(run, 'entity_types', source.length ? 'FOUND' : 'MISSING'),
+        information: recordInformation(run, 'listEntityTypes', 'entity_types', source.length ? 'FOUND' : 'MISSING'),
         truncated: source.length > entityTypes.length,
         entityTypes,
       });
     } catch {
       return entityTypesOutputSchema.parse({
-        information: unavailableInformation(run, 'entity_types'),
+        information: unavailableInformation(run, 'listEntityTypes', 'entity_types'),
         truncated: false,
         entityTypes: [],
       });
@@ -351,7 +356,7 @@ export const searchBusinessEntities = createTool({
       }
       const metadata = entities.flatMap(entity => entity.fields.map(field => field.metadata));
       return businessEntitySearchOutputSchema.parse({
-        information: recordInformation(run, 'entities', page.items.length ? 'FOUND' : 'MISSING', metadata),
+        information: recordInformation(run, 'searchBusinessEntities', 'entities', page.items.length ? 'FOUND' : 'MISSING', metadata),
         truncated: page.items.length >= input.limit || page.items.length > entities.length || entities.some(entity => entity.fieldsTruncated),
         limit: input.limit,
         offset: input.offset,
@@ -361,7 +366,7 @@ export const searchBusinessEntities = createTool({
     } catch (error) {
       if (error instanceof DynamicEntityQueryError) {
         return businessEntitySearchOutputSchema.parse({
-          information: recordInformation(run, 'entities', 'INVALID_QUERY'),
+          information: recordInformation(run, 'searchBusinessEntities', 'entities', 'INVALID_QUERY'),
           truncated: false,
           limit: input.limit,
           offset: input.offset,
@@ -370,7 +375,7 @@ export const searchBusinessEntities = createTool({
         });
       }
       return businessEntitySearchOutputSchema.parse({
-        information: unavailableInformation(run, 'entities'),
+        information: unavailableInformation(run, 'searchBusinessEntities', 'entities'),
         truncated: false,
         limit: input.limit,
         offset: input.offset,
@@ -405,18 +410,18 @@ export const getBusinessEntity = createTool({
       const entity = await run.provider.getEntity(input.entityType, input.entityId);
       if (!entity) {
         return businessEntityOutputSchema.parse({
-          information: recordInformation(run, 'entities', 'MISSING'),
+          information: recordInformation(run, 'getBusinessEntity', 'entities', 'MISSING'),
           entity: null,
         });
       }
       const projected = projectEntity(entity, input.fields, 20);
       return businessEntityOutputSchema.parse({
-        information: recordInformation(run, 'entities', 'FOUND', projected.fields.map(field => field.metadata)),
+        information: recordInformation(run, 'getBusinessEntity', 'entities', 'FOUND', projected.fields.map(field => field.metadata)),
         entity: projected,
       });
     } catch {
       return businessEntityOutputSchema.parse({
-        information: unavailableInformation(run, 'entities'),
+        information: unavailableInformation(run, 'getBusinessEntity', 'entities'),
         entity: null,
       });
     }

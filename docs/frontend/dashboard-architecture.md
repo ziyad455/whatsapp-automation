@@ -55,6 +55,8 @@ React Router owns client-side navigation. `/login` uses the Better Auth React cl
 
 The dashboard uses a compact operational layout with profile, opening-hours, rules, dynamic-data, schema-editor, business-understanding, and agent-chat routes. The agent-chat screen loads the authenticated user's tenant-bound dashboard conversation, sends its server-issued conversation ID on later turns, renders persisted customer and assistant messages, and may show safe `AgentResult` metadata for new replies. The browser does not supply history or authorization: the server authorizes the conversation and loads bounded recent history before invoking the shared runtime. Prompts, tool payloads, and `TenantContext` are never exposed.
 
+Development builds also expose an authenticated AI playground. It uses the active authorized business, a separate persisted dashboard conversation, and the same shared conversation and agent runtime. It may show application-owned intent/handoff metadata, scope/bypass decisions, and safe tool name/outcome/freshness summaries, but never raw tool inputs or outputs, tenant identifiers, prompts, provider payloads, or secrets. Resetting the simulator deletes only that tenant-bound playground thread. The route and navigation are absent from production builds.
+
 A centralized credentialed API client adds `x-business-id` only after the user explicitly selects an accessible business. The selection may be remembered locally for navigation continuity, but every request is independently authorized by the server. Server error details are mapped to accessible form messages without exposing internal errors.
 
 ## Open Questions

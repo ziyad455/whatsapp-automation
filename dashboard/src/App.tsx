@@ -3,6 +3,7 @@ import './App.css'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { DashboardLayout } from './layout/DashboardLayout'
 import { AgentChatPage } from './pages/AgentChatPage'
+import { AiPlaygroundPage } from './pages/AiPlaygroundPage'
 import { BusinessProfilePage } from './pages/BusinessProfilePage'
 import { BusinessRulesPage } from './pages/BusinessRulesPage'
 import { BusinessUnderstandingPage } from './pages/BusinessUnderstandingPage'
@@ -46,6 +47,7 @@ function App() {
             <Route path="schema/:entityTypeKey" element={<SchemaEditorPage />} />
             <Route path="understanding" element={<BusinessUnderstandingPage />} />
             <Route path="agent-chat" element={<AgentChatPage />} />
+            {import.meta.env.DEV ? <Route path="ai-playground" element={<AiPlaygroundPage />} /> : null}
           </Route>
         </Route>
         <Route path="*" element={<NotFoundPage />} />

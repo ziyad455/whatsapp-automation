@@ -13,6 +13,11 @@ import {
   type AgentResult,
 } from './agent-result';
 import type { CustomerMessageAnalysis } from './customer-message-analysis';
+import {
+  agentDiagnosticsSchema,
+  type AgentDiagnostics,
+  type CustomerServiceToolName,
+} from './agent-diagnostics';
 
 export const customerServiceTenantContextSchema = z.object({
   userId: z.uuid(), businessId: z.uuid(), membershipId: z.uuid(), role: z.enum(BusinessUserRole),
@@ -55,6 +60,7 @@ export class CustomerServiceRun {
   #provider: BusinessDataProvider;
   #receipts = new Map<string, FactReceipt>();
   #lookups: FactLookupReceipt[] = [];
+  #toolCalls: AgentDiagnostics['toolCalls'] = [];
   #tenant: TenantContext;
   #business: BusinessContext;
   #closed = false;
@@ -91,6 +97,23 @@ export class CustomerServiceRun {
   }
   recordLookup(status: FactLookupReceipt['status'], kind: FactLookupReceipt['kind']): void {
     this.#lookups.push({ status, kind });
+  }
+  recordToolCall(
+    tool: CustomerServiceToolName,
+    outcome: FactLookupReceipt['status'],
+    freshness: FactReceipt['status'] | null,
+  ): void {
+    if (this.#closed) throw new Error('Authorized AI runtime context is required.');
+    this.#toolCalls.push({ tool, outcome, freshness });
+  }
+  diagnostics(partiallyRelated = false): AgentDiagnostics {
+    if (this.#closed) throw new Error('Authorized AI runtime context is required.');
+    return agentDiagnosticsSchema.parse({
+      scope: 'BUSINESS_RELATED',
+      generationBypassed: false,
+      partiallyRelated,
+      toolCalls: this.#toolCalls,
+    });
   }
   finish(replyValue: unknown, analysis: CustomerMessageAnalysis): AgentResult {
     const reply = normalizeAgentReply(replyValue);
@@ -141,6 +164,7 @@ export class CustomerServiceRun {
     this.#closed = true;
     this.#receipts.clear();
     this.#lookups.length = 0;
+    this.#toolCalls.length = 0;
   }
 }
 

@@ -162,6 +162,17 @@ input:focus, textarea:focus, select:focus { border-color: var(--green); box-shad
 .agent-composer textarea { min-height: 5.5rem; width: 100%; }
 .agent-composer__actions { align-items: center; display: flex; justify-content: space-between; }
 .agent-composer__actions > span { color: var(--muted); font-size: 0.7rem; }
+.playground-tools { border-top: 1px dashed var(--border); margin-top: 0.7rem; padding-top: 0.65rem; }
+.playground-tools > span { color: var(--muted); display: block; font-size: 0.66rem; font-weight: 750; letter-spacing: 0.06em; text-transform: uppercase; }
+.playground-scope { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; margin: 0 0 0.65rem; }
+.playground-scope div { display: flex; gap: 0.3rem; }
+.playground-scope dt, .playground-scope dd { font-size: 0.68rem; margin: 0; }
+.playground-scope dt { color: var(--muted); }
+.playground-scope dd { color: var(--ink-soft); font-weight: 650; text-transform: capitalize; }
+.playground-tools ol { display: grid; gap: 0.35rem; list-style-position: inside; margin: 0.45rem 0 0; padding: 0; }
+.playground-tools li { color: var(--muted); font-size: 0.72rem; }
+.playground-tools code { color: var(--ink-soft); font-size: 0.72rem; margin-right: 0.45rem; }
+.playground-tools p { color: var(--muted); font-size: 0.72rem; margin: 0.4rem 0 0; }
 .visually-hidden { clip: rect(0 0 0 0); clip-path: inset(50%); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
 
 @media (prefers-reduced-motion: reduce) {

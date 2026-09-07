@@ -58,6 +58,14 @@ Each run has a six-step limit, a 60-second model deadline, a 2,000-output-token 
 
 Downstream logic consumes only the validated metadata and must not parse free-form reply prose to decide intent or handoff. Model-generated confidence or reasoning labels are not authorization and cannot gate risky actions.
 
+## Customer-service scope boundary
+
+Application code classifies the validated current message before provider generation. Clearly unrelated requests receive `detectedIntent: OUT_OF_SCOPE`, `reasonCode: OUT_OF_SCOPE`, no human handoff, and a short localized business-scope reply assembled from the authorized business identity. The model and business-information tools are bypassed for that turn. This prevents general-purpose answers and makes the routing result independent of prompt compliance or model-native structured output.
+
+The scope gate uses positive customer-service intent and business-relation signals rather than a large blacklist. It also recognizes bounded referential follow-ups only when authorized recent business conversation exists. For partially related requests, unsupported clauses are removed before generation and the supported business portion continues through the normal shared agent and tenant-bound tools. The original customer message remains persisted conversation evidence; only the model-visible current message is narrowed. Prompt instructions repeat the boundary as defense in depth and prevent old unrelated turns from being revived.
+
+Installed Mastra input/output processors remain available for moderation, injection detection, redaction, and retry use cases. The current prompt-injection detector is LLM-based and its blocking path aborts generation, so it is not the primary customer-scope router: adding another probabilistic call would not produce the required deterministic natural `AgentResult`. Safe playground diagnostics expose only scope, whether generation was bypassed, partial-input handling, and bounded tool summaries.
+
 ## Failure posture
 
 Unknown or stale facts produce an explicit safe outcome. Provider failure should preserve the inbound message, avoid sending low-quality fallback text as if it were valid, and route the conversation to human attention where appropriate.
@@ -65,3 +73,5 @@ Unknown or stale facts produce an explicit safe outcome. Provider failure should
 ## Evaluation
 
 The shared agent must be evaluated across genuinely different tenant schemas and across target languages. Evaluation covers grounded facts, absent facts, multi-turn behavior, handoff, prompt injection, and cross-tenant attempts. See [testing strategy](../engineering/testing-strategy.md).
+
+The stable Sprint 8 corpus lives outside production source under `server/evaluations/`. Deterministic regression exercises application-owned classification, bounded history, hallucination refusal, tenant isolation, and safe tool diagnostics. A separate explicit live-provider runner applies the same corpus to model behavior; provider quota or availability failures remain visible and are not converted into passing results.
