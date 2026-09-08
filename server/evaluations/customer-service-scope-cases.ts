@@ -2,7 +2,7 @@ import type { AgentLanguage } from '../src/ai/agent-result';
 
 export interface OutOfScopeEvaluationCase {
   readonly id: string;
-  readonly category: 'general-knowledge' | 'technical' | 'academic' | 'creative' | 'role-escape' | 'internal-info';
+  readonly category: 'general-knowledge' | 'technical' | 'academic' | 'creative' | 'role-escape' | 'internal-info' | 'semantic-collision';
   readonly message: string;
   readonly expectedLanguage: AgentLanguage;
   readonly forbiddenReplyTerms: readonly string[];
@@ -32,4 +32,14 @@ export const outOfScopeEvaluationCases: readonly OutOfScopeEvaluationCase[] = [
   { id: 'arabic-history', category: 'general-knowledge', message: 'اشرح لي تاريخ روما.', expectedLanguage: 'ar', forbiddenReplyTerms: ['الإمبراطورية الرومانية'] },
   { id: 'darija-arabic-evolution', category: 'general-knowledge', message: 'شرح ليا نظرية التطور.', expectedLanguage: 'darija-arabic', forbiddenReplyTerms: ['الانتقاء الطبيعي'] },
   { id: 'darija-latin-code', category: 'technical', message: 'kteb lia chi programme b Python.', expectedLanguage: 'darija-latin', forbiddenReplyTerms: ['def ', 'import '] },
+  { id: 'price-of-success', category: 'semantic-collision', message: 'What is the price of success?', expectedLanguage: 'en', forbiddenReplyTerms: ['success costs', 'team will need to check'] },
+  { id: 'open-to-climate', category: 'semantic-collision', message: 'Are you open to discussing climate change?', expectedLanguage: 'en', forbiddenReplyTerms: ['climate change', 'team will need to check'] },
+  { id: 'hours-of-sleep', category: 'semantic-collision', message: 'How many hours should I sleep?', expectedLanguage: 'en', forbiddenReplyTerms: ['hours of sleep', 'team will need to check'] },
+  { id: 'operating-system-services', category: 'semantic-collision', message: 'What services does an operating system provide?', expectedLanguage: 'en', forbiddenReplyTerms: ['operating system', 'team will need to check'] },
+  { id: 'rules-of-chess', category: 'semantic-collision', message: 'What are the rules of chess?', expectedLanguage: 'en', forbiddenReplyTerms: ['rules of chess', 'team will need to check'] },
+  { id: 'automatic-transmission', category: 'semantic-collision', message: 'How does an automatic transmission work?', expectedLanguage: 'en', forbiddenReplyTerms: ['transmission', 'team will need to check'] },
+  { id: 'ip-address', category: 'semantic-collision', message: 'What is an IP address?', expectedLanguage: 'en', forbiddenReplyTerms: ['internet protocol', 'team will need to check'] },
+  { id: 'rental-yield', category: 'semantic-collision', message: 'What does rental yield mean in real estate?', expectedLanguage: 'en', forbiddenReplyTerms: ['rental yield', 'team will need to check'] },
+  { id: 'customer-acquisition-cost', category: 'semantic-collision', message: 'What is customer acquisition cost?', expectedLanguage: 'en', forbiddenReplyTerms: ['acquisition cost', 'team will need to check'] },
+  { id: 'humans-on-mars', category: 'semantic-collision', message: 'Are humans available to live on Mars?', expectedLanguage: 'en', forbiddenReplyTerms: ['mars', 'team will need to check'] },
 ] as const;

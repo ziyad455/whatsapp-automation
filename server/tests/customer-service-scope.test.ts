@@ -3,6 +3,7 @@ import { noopObserve } from '@mastra/core/tools';
 import { describe, expect, it, vi } from 'vitest';
 import { outOfScopeEvaluationCases } from '../evaluations/customer-service-scope-cases';
 import { runCustomerServiceAgentWithDiagnostics } from '../src/ai/customer-service-agent';
+import { analyzeCustomerMessage } from '../src/ai/customer-message-analysis';
 import { classifyCustomerScope } from '../src/ai/customer-scope';
 import { businessEntitySearchOutputSchema, searchBusinessEntities } from '../src/mastra/tools/business-information-tools';
 import { fakeMetadata, fakeProvider, fakeTenant } from './helpers/ai-fixtures';
@@ -81,6 +82,41 @@ describe('customer-service scope boundary', () => {
       scope: 'BUSINESS_RELATED',
       modelMessage: 'Can I take the rental car to Essaouira?',
       partiallyRelated: false,
+    });
+  });
+
+  it.each([
+    ['What is the price of the Clio?', 'PRICE_INQUIRY'],
+    ['what is the price of the clio?', 'PRICE_INQUIRY'],
+    ['When do you open?', 'BUSINESS_INFORMATION'],
+    ['What cars are available?', 'AVAILABILITY_INQUIRY'],
+    ['What are your rental rules?', 'BUSINESS_INFORMATION'],
+    ['Can I rent the car to go to Essaouira?', 'UNKNOWN'],
+  ] as const)('classifies a real business request after scope: %s', (message, expectedIntent) => {
+    const decision = classifyCustomerScope(message);
+
+    expect(decision.scope).toBe('BUSINESS_RELATED');
+    expect(analyzeCustomerMessage(decision.modelMessage).detectedIntent).toBe(expectedIntent);
+  });
+
+  it('passes only the supported rental portion of a mixed travel request', async () => {
+    const tenant = fakeTenant();
+    const detailed = await runCustomerServiceAgentWithDiagnostics({
+      tenant,
+      message: 'How far is Essaouira and can I take the rental car there?',
+    }, {
+      createProvider: currentTenant => fakeProvider(currentTenant, 'Atlas Cars'),
+      executor: async execution => {
+        expect(execution.messages.at(-1)?.content).toBe('can I take the rental car there');
+        return 'You can take the rental car to Essaouira, subject to our rental policy.';
+      },
+    });
+
+    expect(detailed.result.reply).not.toMatch(/kilomet(?:er|re)|\bkm\b/iu);
+    expect(detailed.diagnostics).toMatchObject({
+      scope: 'BUSINESS_RELATED',
+      generationBypassed: false,
+      partiallyRelated: true,
     });
   });
 

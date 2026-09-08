@@ -82,6 +82,9 @@ const detectLanguage = (tokens: readonly string[]): AgentLanguage => {
   return 'other';
 };
 
+export const detectCustomerLanguage = (message: string): AgentLanguage =>
+  detectLanguage(tokenize(message));
+
 const detectIntent = (tokens: readonly string[]): AgentIntent => {
   if (containsAny(tokens, HUMAN_PHRASES)) return 'HUMAN_REQUEST';
   if (containsAny(tokens, COMPLAINT_PHRASES)) return 'COMPLAINT';
