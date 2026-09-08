@@ -7,7 +7,7 @@ import { buildBusinessContext, type BusinessDataProviderFactory } from './busine
 import { buildBusinessInstructions } from './business-instructions';
 import { buildConversationMessages, type ConversationHistory, type ConversationMessage } from './conversation-context';
 import { type AgentResult } from './agent-result';
-import { analyzeCustomerMessage } from './customer-message-analysis';
+import { analyzeCustomerMessage, detectCustomerLanguage } from './customer-message-analysis';
 import { AI_RUN_KEY, CustomerServiceRun, customerServiceTenantContextSchema, type CustomerServiceRequestContext } from './request-context';
 import type { AgentDiagnostics } from './agent-diagnostics';
 import { agentDiagnosticsSchema } from './agent-diagnostics';
@@ -56,13 +56,12 @@ export const runCustomerServiceAgentWithDiagnostics = async (
 ): Promise<CustomerServiceAgentDetailedResult> => {
   const tenant = customerServiceTenantContextSchema.parse(input.tenant);
   const originalMessages = buildConversationMessages(tenant, input.message, input.history);
-  const messageAnalysis = analyzeCustomerMessage(input.message);
   const scopeDecision = classifyCustomerScope(input.message, input.history);
   const createProvider = dependencies.createProvider ?? createDatabaseBusinessDataProvider;
   const business = await buildBusinessContext(tenant, createProvider);
   if (scopeDecision.scope === 'OUT_OF_SCOPE') {
     return {
-      result: createOutOfScopeAgentResult(business, messageAnalysis.detectedLanguage),
+      result: createOutOfScopeAgentResult(business, detectCustomerLanguage(input.message)),
       diagnostics: agentDiagnosticsSchema.parse({
         scope: 'OUT_OF_SCOPE',
         generationBypassed: true,
@@ -71,6 +70,11 @@ export const runCustomerServiceAgentWithDiagnostics = async (
       }),
     };
   }
+  const scopedMessageAnalysis = analyzeCustomerMessage(scopeDecision.modelMessage);
+  const messageAnalysis = {
+    ...scopedMessageAnalysis,
+    detectedLanguage: detectCustomerLanguage(input.message),
+  };
   const messages = scopeDecision.modelMessage === input.message
     ? originalMessages
     : buildConversationMessages(tenant, scopeDecision.modelMessage, input.history);
