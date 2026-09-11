@@ -1,9 +1,11 @@
 import type {
   ConversationChannel,
   ConversationMessageRole,
+  Prisma,
 } from '../generated/prisma/client';
 import { prisma } from '../db/prisma';
 import type { TenantContext } from '../tenancy/tenant-context';
+import { pendingCustomerActionsSchema, type PendingCustomerAction } from '../ai/customer-capabilities';
 
 export const createTenantConversationRepository = (tenant: TenantContext) => ({
   findById: (conversationId: string) =>
@@ -49,8 +51,12 @@ export const createTenantConversationRepository = (tenant: TenantContext) => ({
     conversationId: string,
     role: ConversationMessageRole,
     content: string,
+    state?: { readonly pendingActions: readonly PendingCustomerAction[] },
   ) => {
     const createdAt = new Date();
+    const pendingActions = state
+      ? pendingCustomerActionsSchema.parse(state.pendingActions).map(action => ({ ...action })) as Prisma.InputJsonValue
+      : undefined;
     return prisma.$transaction(async transaction => {
       const conversation = await transaction.conversation.update({
         where: {
@@ -62,6 +68,7 @@ export const createTenantConversationRepository = (tenant: TenantContext) => ({
         data: {
           lastMessageAt: createdAt,
           messageCount: { increment: 1 },
+          ...(pendingActions ? { pendingActions } : {}),
         },
         select: { messageCount: true },
       });

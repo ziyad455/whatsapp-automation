@@ -183,7 +183,7 @@ export const createDatabaseBusinessDataProvider = (
       }));
     },
     listEntityTypes: async () => {
-      const entityTypes = await catalogService.list();
+      const entityTypes = await catalogService.listSchemas();
 
       return entityTypes.map(entityType => ({
         id: entityType.id,
@@ -191,7 +191,12 @@ export const createDatabaseBusinessDataProvider = (
         name: entityType.name,
         description: entityType.description,
         schemaVersion: entityType.schemaVersion,
-        fieldCount: entityType.fieldCount,
+        fieldCount: entityType.fieldDefinitions.length,
+        fields: entityType.fieldDefinitions.map(field => ({
+          key: field.key,
+          label: field.label,
+          type: field.type,
+        })),
       }));
     },
     searchEntities: async input => {

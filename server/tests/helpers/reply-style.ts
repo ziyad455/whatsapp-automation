@@ -5,11 +5,13 @@ export type ReplyStyleViolation =
   | 'EXCESSIVE_LENGTH';
 
 const roboticNarrationPatterns = [
-  /based on (?:the )?(?:latest|available|current) data/iu,
+  /based on (?:(?:our|the) )?(?:latest|available|current) (?:data|information)/iu,
   /according to (?:our|the) (?:system|records|database)/iu,
   /(?:our|the) system (?:indicates|shows)/iu,
   /(?:listed|marked) (?:as )?.{0,80} in (?:our|the) system/iu,
   /i (?:have )?(?:checked|queried) (?:the )?(?:available )?data/iu,
+  /i (?:have )?checked (?:our|the) system/iu,
+  /(?:our|the) database shows/iu,
   /\b(?:database|businessdataprovider|freshness checker|tool results?|internal verification)\b/iu,
   /selon (?:notre|le) système/iu,
   /d'après (?:les|nos) données/iu,

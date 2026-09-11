@@ -32,6 +32,7 @@ const BUSINESS_RELATION_PHRASES = [
   /\bwhat\s+do\s+you\s+do\b/iu,
   /\btell\s+me\s+about\s+(?:your|the)\s+(?:business|company)\b/iu,
   /\b(?:do|can)\s+you\s+(?:have|offer|provide|sell|rent|deliver)\b/iu,
+  /\b(?:can|could|would)\s+you\s+(?:check|confirm|verify|book|reserve|arrange|cancel|contact|process|apply|issue)\b/iu,
   /\b(?:what|which)\s+(?:products?|cars?|vehicles?|services?)\s+(?:do\s+you\s+)?(?:have|offer|provide|rent|sell|stock)\b/iu,
   /\b(?:is|are)\s+(?:an?\s+)?[\p{L}\s-]{1,40}\s+services?\s+available\b/iu,
   /\b(?:when|what\s+time)\s+(?:do|are)\s+you\s+(?:open|close|closed)\b/iu,

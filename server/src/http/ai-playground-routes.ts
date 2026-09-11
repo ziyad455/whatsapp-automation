@@ -1,5 +1,5 @@
 import { registerApiRoute } from '@mastra/core/server';
-import { env } from '../config/env';
+import { isDevelopmentRuntime } from '../config/env';
 import {
   handleAiPlaygroundConversation,
   handleAiPlaygroundMessage,
@@ -35,4 +35,4 @@ const routes = [
   }),
 ];
 
-export const aiPlaygroundRoutes = env.NODE_ENV === 'production' ? [] : routes;
+export const aiPlaygroundRoutes = isDevelopmentRuntime ? routes : [];

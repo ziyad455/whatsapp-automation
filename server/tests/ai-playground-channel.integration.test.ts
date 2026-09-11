@@ -46,6 +46,7 @@ const send = (
       partiallyRelated: false;
       toolCalls: Array<{ tool: 'getOpeningHours'; outcome: 'FOUND'; freshness: 'FRESH' }>;
     };
+    offeredActions: readonly [];
   }>,
   conversationId?: string,
 ) => handleAiPlaygroundMessage({
@@ -95,6 +96,7 @@ describe('Sprint 8 internal AI playground channel', () => {
           detectedLanguage: 'en',
         }),
         diagnostics: { scope: 'BUSINESS_RELATED' as const, generationBypassed: false as const, partiallyRelated: false as const, toolCalls: [{ tool: 'getOpeningHours' as const, outcome: 'FOUND' as const, freshness: 'FRESH' as const }] },
+        offeredActions: [] as const,
       };
     });
 
@@ -120,6 +122,7 @@ describe('Sprint 8 internal AI playground channel', () => {
     const runtime = vi.fn(async () => ({
       result: agentResultSchema.parse({ reply: 'Okay.', needsHuman: false, detectedIntent: 'UNKNOWN', reasonCode: 'NONE', detectedLanguage: 'other' }),
       diagnostics: { scope: 'BUSINESS_RELATED' as const, generationBypassed: false as const, partiallyRelated: false as const, toolCalls: [{ tool: 'getOpeningHours' as const, outcome: 'FOUND' as const, freshness: 'FRESH' as const }] },
+      offeredActions: [] as const,
     }));
     const foreign = await send(tenantB, 'Hello', runtime);
     runtime.mockClear();
@@ -133,6 +136,7 @@ describe('Sprint 8 internal AI playground channel', () => {
     const runtime = async () => ({
       result: agentResultSchema.parse({ reply: 'Okay.', needsHuman: false, detectedIntent: 'UNKNOWN', reasonCode: 'NONE', detectedLanguage: 'other' }),
       diagnostics: { scope: 'BUSINESS_RELATED' as const, generationBypassed: false as const, partiallyRelated: false as const, toolCalls: [{ tool: 'getOpeningHours' as const, outcome: 'FOUND' as const, freshness: 'FRESH' as const }] },
+      offeredActions: [] as const,
     });
     await send(tenantA, 'A message', runtime);
     await send(tenantB, 'B message', runtime);

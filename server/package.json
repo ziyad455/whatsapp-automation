@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit --pretty false",
     "test": "tsx scripts/run-tests.ts",
     "test:run": "vitest run",
-    "test:ai:regression": "node --env-file=.env node_modules/vitest/vitest.mjs run tests/ai-regression.test.ts tests/customer-service-agent.test.ts tests/customer-service-reply-style.test.ts tests/customer-service-scope.test.ts",
+    "test:ai:regression": "node --env-file=.env node_modules/vitest/vitest.mjs run tests/ai-regression.test.ts tests/customer-service-agent.test.ts tests/customer-service-capabilities.test.ts tests/customer-service-reply-style.test.ts tests/customer-service-scope.test.ts",
     "test:ai:live": "node --env-file=.env --import tsx scripts/evaluate-customer-service.ts",
     "test:ai:dataset:live": "node --env-file=.env --import tsx scripts/evaluate-customer-service-dataset.ts",
     "db:connect": "tsx src/db/check-connection.ts",

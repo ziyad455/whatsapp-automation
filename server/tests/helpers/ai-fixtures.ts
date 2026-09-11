@@ -21,7 +21,14 @@ export const fakeProvider = (tenant: TenantContext, name = 'Atlas Cars'): Busine
     metadata: fakeMetadata(),
   }],
   getBusinessRules: async () => [{ id: randomUUID(), category: 'DEPOSIT', name: 'Deposit', content: 'Deposit required: 3000 MAD', metadata: fakeMetadata() }],
-  listEntityTypes: async () => [{ id: randomUUID(), key: 'vehicle', name: 'Vehicles', description: null, schemaVersion: 1, fieldCount: 1 }],
+  listEntityTypes: async () => [{
+    id: randomUUID(), key: 'vehicle', name: 'Vehicles', description: null, schemaVersion: 1, fieldCount: 3,
+    fields: [
+      { key: 'price', label: 'Daily price', type: 'NUMBER' },
+      { key: 'weeklyRate', label: 'Weekly rate', type: 'NUMBER' },
+      { key: 'available', label: 'Available', type: 'BOOLEAN' },
+    ],
+  }],
   searchEntities: async () => ({ items: [], limit: 5, offset: 0 }),
   getEntity: async () => null,
 });
