@@ -23,6 +23,7 @@ export interface CreateBusinessEntityTypeCatalogInput {
 
 export interface TenantBusinessCatalogService {
   list(): Promise<BusinessEntityTypeSummary[]>;
+  listSchemas(): Promise<BusinessEntityTypeSchema[]>;
   getByKey(key: string): Promise<BusinessEntityTypeSchema | null>;
   create(input: CreateBusinessEntityTypeCatalogInput): Promise<BusinessEntityTypeSchema>;
 }
@@ -42,6 +43,17 @@ export const createTenantBusinessCatalogService = (
       fieldCount: _count.fieldDefinitions,
     }));
   },
+  listSchemas: () =>
+    prisma.businessEntityType.findMany({
+      where: { businessId: tenant.businessId },
+      include: {
+        fieldDefinitions: {
+          where: { enabled: true },
+          orderBy: [{ displayOrder: 'asc' }, { id: 'asc' }],
+        },
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    }),
   getByKey: key =>
     prisma.businessEntityType.findUnique({
       where: {

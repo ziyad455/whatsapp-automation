@@ -18,7 +18,7 @@ const conversationIdentitySchema = z.object({
 
 export type ConversationReference = Pick<
   Conversation,
-  'id' | 'businessId' | 'channel' | 'participantKey'
+  'id' | 'businessId' | 'channel' | 'participantKey' | 'pendingActions'
 >;
 
 export interface ResolveChannelConversationInput {

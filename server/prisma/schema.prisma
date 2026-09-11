@@ -154,6 +154,7 @@ model Conversation {
   businessId     String              @map("business_id") @db.Uuid
   channel        ConversationChannel
   participantKey String              @map("participant_key") @db.Text
+  pendingActions Json                @default("[]") @map("pending_actions") @db.JsonB
   messageCount   Int                 @default(0) @map("message_count")
   lastMessageAt  DateTime            @default(now()) @map("last_message_at") @db.Timestamptz(6)
   createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)

@@ -32,8 +32,13 @@ describe('customer-service reply style', () => {
 
   it.each([
     'Based on the latest data from our system, the Clio is available.',
+    'Based on our latest information, the Clio is available.',
+    'Based on the available data, the Clio is available.',
     'According to our records, the price is 300 MAD.',
     'The system indicates that we close at 18:00.',
+    'The system shows that we close at 18:00.',
+    'Our database shows that the Clio is available.',
+    'I checked the system and the Clio is available.',
     "D'après nos données, la Clio est disponible.",
     'حسب النظام، السيارة متوفرة.',
   ])('flags internal or system-style narration: %s', reply => {

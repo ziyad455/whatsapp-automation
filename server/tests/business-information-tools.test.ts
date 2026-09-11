@@ -95,6 +95,10 @@ describe('Sprint 7 business information tools', () => {
     }));
     provider.listEntityTypes = async () => Array.from({ length: 25 }, (_, index) => ({
       id: randomUUID(), key: `type-${index}`, name: `Type ${index}`, description: 'Useful public description', schemaVersion: 1, fieldCount: 2,
+      fields: [
+        { key: 'weeklyRate', label: 'Weekly rate', type: 'NUMBER' as const },
+        { key: 'apiKey', label: 'Private API key', type: 'TEXT' as const },
+      ],
     }));
 
     const outputs = await insideRun(tenant, provider, async execution => ({
@@ -110,6 +114,9 @@ describe('Sprint 7 business information tools', () => {
     expect(outputs.rules.rules.length).toBeLessThanOrEqual(20);
     expect(outputs.types).toMatchObject({ truncated: true });
     expect(outputs.types.entityTypes).toHaveLength(20);
+    expect(outputs.types.entityTypes[0]).toMatchObject({
+      fields: [{ key: 'weeklyRate', label: 'Weekly rate', type: 'NUMBER' }],
+    });
     expect(JSON.stringify(outputs)).not.toMatch(/businessId|membershipId|userId|externalId|lastVerifiedAt|schemaVersion|fieldCount|private-provider-id/);
   });
 

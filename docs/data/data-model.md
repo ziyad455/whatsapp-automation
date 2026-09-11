@@ -28,7 +28,7 @@ Mutable business facts carry provenance only where the persisted record is an au
 
 - **Customer** is a tenant-owned contact. A WhatsApp sender resolves to a customer only after the receiving business is known.
 - **Conversation** is tenant-owned and identifies a thread by channel plus channel-specific participant identity. The implemented dashboard foundation stores business, `DASHBOARD`/future `WHATSAPP` channel, participant key, and activity timestamps. Customer linkage, control mode, operational status, and assignment remain later extensions.
-- **ConversationMessage** belongs directly to a business and same-business conversation and currently records a monotonic conversation sequence, `CUSTOMER`/`ASSISTANT` content, and time. External transport identity and delivery state remain for WhatsApp work.
+- **ConversationMessage** belongs directly to a business and same-business conversation and currently records a monotonic conversation sequence, `CUSTOMER`/`ASSISTANT` content, and time. Conversation stores a bounded JSON list of validated pending read actions so follow-up acceptance survives refresh without treating assistant prose as executable state. External transport identity and delivery state remain for WhatsApp work.
 
 Conversation messages preserve bounded interaction context used by the application. They are not an authoritative store for current business facts mentioned in old conversations.
 

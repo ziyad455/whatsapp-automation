@@ -14,6 +14,15 @@ import {
 } from './agent-result';
 import type { CustomerMessageAnalysis } from './customer-message-analysis';
 import {
+  appendApplicationOwnedOffer,
+  isPendingActionAvailable,
+  pendingCustomerActionsSchema,
+  requestedCustomerActionsSchema,
+  type CustomerServiceCapability,
+  type PendingCustomerAction,
+  type RequestedCustomerAction,
+} from './customer-capabilities';
+import {
   agentDiagnosticsSchema,
   type AgentDiagnostics,
   type CustomerServiceToolName,
@@ -61,15 +70,24 @@ export class CustomerServiceRun {
   #receipts = new Map<string, FactReceipt>();
   #lookups: FactLookupReceipt[] = [];
   #toolCalls: AgentDiagnostics['toolCalls'] = [];
+  #capabilities: readonly CustomerServiceCapability[];
+  #knownEntityTypes = new Map<string, ReadonlyMap<string, string>>();
+  #offeredActions: PendingCustomerAction[] = [];
   #tenant: TenantContext;
   #business: BusinessContext;
   #closed = false;
   #calls = 0;
 
-  constructor(tenant: TenantContext, business: BusinessContext, provider: BusinessDataProvider) {
+  constructor(
+    tenant: TenantContext,
+    business: BusinessContext,
+    provider: BusinessDataProvider,
+    capabilities: readonly CustomerServiceCapability[],
+  ) {
     this.#tenant = tenant;
     this.#business = business;
     this.#provider = provider;
+    this.#capabilities = capabilities;
   }
 
   authorize(tenant: TenantContext): void {
@@ -89,6 +107,42 @@ export class CustomerServiceRun {
   get provider(): BusinessDataProvider {
     if (this.#closed || ++this.#calls > 8) throw new Error('AI fact lookup budget exceeded.');
     return this.#provider;
+  }
+  get offeredActions(): readonly PendingCustomerAction[] {
+    return pendingCustomerActionsSchema.parse(this.#offeredActions);
+  }
+  recordEntityTypes(entityTypes: readonly {
+    readonly key: string;
+    readonly fields: readonly { readonly key: string; readonly label: string }[];
+  }[]): void {
+    if (this.#closed) throw new Error('Authorized AI runtime context is required.');
+    for (const entityType of entityTypes) {
+      const knownFields = this.#knownEntityTypes.get(entityType.key) ?? new Map<string, string>();
+      this.#knownEntityTypes.set(
+        entityType.key,
+        new Map([...knownFields, ...entityType.fields.map(field => [field.key, field.label] as const)]),
+      );
+    }
+  }
+  offerActions(actions: readonly RequestedCustomerAction[]): readonly PendingCustomerAction[] {
+    if (this.#closed) throw new Error('Authorized AI runtime context is required.');
+    const candidates = requestedCustomerActionsSchema.parse(actions);
+    const accepted = candidates.flatMap(action => {
+      if (!isPendingActionAvailable(action, this.#capabilities)) return [];
+      if (action.type === 'LIST_AVAILABLE_ENTITIES') {
+        return this.#knownEntityTypes.has(action.entityType) ? [action] : [];
+      }
+      if (action.type === 'CHECK_ENTITY_FIELD') {
+        const label = this.#knownEntityTypes.get(action.entityType)?.get(action.field);
+        return label ? [{ ...action, label }] : [];
+      }
+      return [action];
+    });
+    this.#offeredActions = pendingCustomerActionsSchema.parse(
+      accepted.filter((action, index) => accepted.findIndex(candidate =>
+        JSON.stringify(candidate) === JSON.stringify(action)) === index),
+    );
+    return this.offeredActions;
   }
   record(status: FactReceipt['status'], kind: FactReceipt['kind']): string {
     const reference = `fact-${this.#receipts.size + 1}`;
@@ -150,7 +204,12 @@ export class CustomerServiceRun {
 
     const safeReply = ['MISSING_INFORMATION', 'STALE_INFORMATION'].includes(reasonCode)
       ? UNVERIFIED_REPLY[analysis.detectedLanguage]
-      : reply;
+      : appendApplicationOwnedOffer(
+        reply,
+        reasonCode === 'NONE' && !needsHuman ? this.#offeredActions : [],
+        analysis.detectedLanguage,
+      );
+    if (reasonCode !== 'NONE' || needsHuman) this.#offeredActions = [];
 
     return agentResultSchema.parse({
       reply: safeReply,
@@ -165,6 +224,8 @@ export class CustomerServiceRun {
     this.#receipts.clear();
     this.#lookups.length = 0;
     this.#toolCalls.length = 0;
+    this.#knownEntityTypes.clear();
+    this.#offeredActions.length = 0;
   }
 }
 

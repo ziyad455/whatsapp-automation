@@ -1,8 +1,10 @@
 import type { AgentResult } from '../ai/agent-result';
 import {
-  runCustomerServiceAgent,
+  runCustomerServiceAgentWithDiagnostics,
+  type CustomerServiceAgentDetailedResult,
   type CustomerServiceAgentInput,
 } from '../ai/customer-service-agent';
+import { pendingCustomerActionsSchema } from '../ai/customer-capabilities';
 import {
   conversationMessageSchema,
   HISTORY_MESSAGE_LIMIT,
@@ -16,7 +18,7 @@ import type { ConversationReference } from './conversation.service';
 
 export type CustomerServiceRuntime = (
   input: CustomerServiceAgentInput,
-) => Promise<AgentResult>;
+) => Promise<AgentResult | CustomerServiceAgentDetailedResult>;
 
 export interface CustomerServiceConversationDependencies {
   readonly runCustomerService?: CustomerServiceRuntime;
@@ -67,17 +69,24 @@ export const runCustomerServiceConversation = async (
       content: message.content,
     })),
   };
-  const runtime = dependencies.runCustomerService ?? runCustomerServiceAgent;
-  const result = await runtime({
+  const runtime = dependencies.runCustomerService ?? runCustomerServiceAgentWithDiagnostics;
+  const runtimeOutput = await runtime({
     tenant: input.tenant,
     message: customerMessage.content,
     history,
+    pendingActions: pendingCustomerActionsSchema.parse(input.conversation.pendingActions),
   });
+  const detailed = 'result' in runtimeOutput;
+  const result = detailed ? runtimeOutput.result : runtimeOutput;
+  const offeredActions = detailed
+    ? pendingCustomerActionsSchema.parse(runtimeOutput.offeredActions)
+    : [];
 
   await repository.appendMessage(
     input.conversation.id,
     'ASSISTANT',
     result.reply,
+    { pendingActions: offeredActions },
   );
 
   return { conversationId: input.conversation.id, result };

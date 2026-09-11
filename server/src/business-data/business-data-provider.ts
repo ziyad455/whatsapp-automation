@@ -57,6 +57,13 @@ export interface CurrentBusinessEntityType {
   description: string | null;
   schemaVersion: number;
   fieldCount: number;
+  fields: CurrentBusinessEntityTypeField[];
+}
+
+export interface CurrentBusinessEntityTypeField {
+  key: string;
+  label: string;
+  type: BusinessFieldType;
 }
 
 export interface CurrentBusinessEntityField {

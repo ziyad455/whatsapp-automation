@@ -165,6 +165,41 @@ describe('dashboard customer-service conversation channel', () => {
     ]);
   });
 
+  it('persists application-owned pending actions and consumes an accepted action on the next turn', async () => {
+    const observedInputs: CustomerServiceAgentInput[] = [];
+    const runConversation: DashboardConversationRunner = input =>
+      runCustomerServiceConversation(input, {
+        runCustomerService: async agentInput => {
+          observedInputs.push(agentInput);
+          const firstTurn = observedInputs.length === 1;
+          return {
+            result: result(firstTurn
+              ? 'The Clio is 300 MAD/day. I can also check the other available options.'
+              : 'The Dacia Logan is also available.'),
+            diagnostics: {
+              scope: 'BUSINESS_RELATED',
+              generationBypassed: false,
+              partiallyRelated: false,
+              toolCalls: [],
+            },
+            offeredActions: firstTurn
+              ? [{ type: 'LIST_AVAILABLE_ENTITIES' as const, entityType: 'vehicle' }]
+              : [],
+          };
+        },
+      });
+
+    const first = await send(tenantA, 'How much is the Clio?', runConversation);
+    await send(tenantA, 'okay do that', runConversation, first.conversationId);
+
+    expect(observedInputs[0]?.pendingActions).toEqual([]);
+    expect(observedInputs[1]?.pendingActions).toEqual([
+      { type: 'LIST_AVAILABLE_ENTITIES', entityType: 'vehicle' },
+    ]);
+    await expect(createTenantConversationRepository(tenantA.tenant).findById(first.conversationId))
+      .resolves.toMatchObject({ pendingActions: [] });
+  });
+
   it('loads only the bounded recent history into the shared agent runtime', async () => {
     const conversation = await resolveChannelConversation(tenantA.tenant, { channel: 'DASHBOARD', participantKey: tenantA.tenant.userId, createIfMissing: true });
     if (!conversation) throw new Error('Expected dashboard conversation.');

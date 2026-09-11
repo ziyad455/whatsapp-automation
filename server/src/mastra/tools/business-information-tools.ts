@@ -261,12 +261,18 @@ export const entityTypesOutputSchema = z.object({
     key: entityTypeSchema,
     name: z.string().max(200),
     description: z.string().max(300).nullable(),
+    fields: z.array(z.object({
+      key: fieldKeySchema,
+      label: z.string().max(100),
+      type: z.enum(['TEXT', 'LONG_TEXT', 'NUMBER', 'BOOLEAN', 'DATE', 'DATETIME', 'SELECT', 'MULTI_SELECT']),
+    }).strict()).max(20),
+    fieldsTruncated: z.boolean(),
   }).strict()).max(20),
 }).strict();
 
 export const listEntityTypes = createTool({
   id: 'list-entity-types',
-  description: 'List dynamic business-data categories available to the authorized business. Takes no tenant identifier.',
+  description: 'List dynamic business-data categories and enabled public field keys available to the authorized business. Use this to discover tenant-specific facts before querying them. Takes no tenant identifier.',
   strict: true,
   inputSchema: emptyBusinessInformationInputSchema,
   outputSchema: entityTypesOutputSchema,
@@ -275,11 +281,24 @@ export const listEntityTypes = createTool({
     const run = requireCustomerServiceRun(context?.requestContext);
     try {
       const source = await run.provider.listEntityTypes();
-      const entityTypes = source.slice(0, 20).map(type => ({
-        key: type.key,
-        name: type.name.slice(0, 200),
-        description: type.description?.slice(0, 300) ?? null,
-      }));
+      const entityTypes = source.slice(0, 20).map(type => {
+        const fields = type.fields
+          .filter(field => !sensitiveField.test(`${field.key} ${field.label}`))
+          .slice(0, 20)
+          .map(field => ({
+            key: field.key,
+            label: field.label.slice(0, 100),
+            type: field.type,
+          }));
+        return {
+          key: type.key,
+          name: type.name.slice(0, 200),
+          description: type.description?.slice(0, 300) ?? null,
+          fields,
+          fieldsTruncated: type.fields.length > fields.length,
+        };
+      });
+      run.recordEntityTypes(entityTypes);
       return entityTypesOutputSchema.parse({
         information: recordInformation(run, 'listEntityTypes', 'entity_types', source.length ? 'FOUND' : 'MISSING'),
         truncated: source.length > entityTypes.length,
@@ -355,6 +374,9 @@ export const searchBusinessEntities = createTool({
         entities.push(projected);
       }
       const metadata = entities.flatMap(entity => entity.fields.map(field => field.metadata));
+      if (page.items.length > 0) {
+        run.recordEntityTypes([{ key: input.entityType, fields: [] }]);
+      }
       return businessEntitySearchOutputSchema.parse({
         information: recordInformation(run, 'searchBusinessEntities', 'entities', page.items.length ? 'FOUND' : 'MISSING', metadata),
         truncated: page.items.length >= input.limit || page.items.length > entities.length || entities.some(entity => entity.fieldsTruncated),

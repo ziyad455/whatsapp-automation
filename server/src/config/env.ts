@@ -29,6 +29,7 @@ const requiredHttpOrigin = (name: string) =>
 
 const serverEnvironmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  MASTRA_DEV: z.enum(['true', 'false', '1', '0']).optional(),
   PORT: z.preprocess(
     value => (value === undefined || value === '' ? 4111 : Number(value)),
     z.number().int().min(1).max(65_535),
@@ -63,3 +64,8 @@ if (!validation.success) {
 }
 
 export const env = Object.freeze(validation.data);
+
+// `mastra dev` runs the generated server bundle with NODE_ENV=production and
+// exposes MASTRA_DEV=true to distinguish it from a production server.
+export const isDevelopmentRuntime =
+  env.NODE_ENV !== 'production' || env.MASTRA_DEV === 'true' || env.MASTRA_DEV === '1';

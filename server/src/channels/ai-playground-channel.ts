@@ -94,7 +94,7 @@ export const handleAiPlaygroundMessage = async (
       runCustomerService: async runtimeInput => {
         const detailed = await runDetailed(runtimeInput);
         diagnostics = detailed.diagnostics;
-        return detailed.result;
+        return detailed;
       },
     },
   );

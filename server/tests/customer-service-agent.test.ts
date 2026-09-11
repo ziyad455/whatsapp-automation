@@ -23,7 +23,7 @@ import { TENANT_CONTEXT_KEY } from '../src/tenancy/tenant-context';
 import { fakeTenant, fakeProvider, fakeMetadata } from './helpers/ai-fixtures';
 
 describe('shared customer-service runtime', () => {
-  it('keeps one shared registration, six read capabilities, and no memory', async () => {
+  it('keeps one shared registration, six read capabilities, one bounded action-offer control, and no memory', async () => {
     expect(Object.values(mastra.listAgents())).toEqual([customerServiceAgent]);
     expect(mastra.getAgentById(CUSTOMER_SERVICE_AGENT_ID)).toBe(customerServiceAgent);
     expect(Object.keys(await customerServiceAgent.listTools())).toEqual([
@@ -33,6 +33,7 @@ describe('shared customer-service runtime', () => {
       'listEntityTypes',
       'searchBusinessEntities',
       'getBusinessEntity',
+      'offerCustomerServiceActions',
     ]);
     expect(await customerServiceAgent.getMemory()).toBeUndefined();
   });
