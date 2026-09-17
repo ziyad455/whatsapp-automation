@@ -8,9 +8,10 @@ Tokens, verify secrets, application secrets, phone identifiers, and temporary tu
 
 ## Inbound transport
 
-The Mastra server exposes:
+The Mastra server exposes `GET /webhooks/whatsapp` as an explicitly public route for Meta's subscription challenge. It requires `hub.mode=subscribe`, the server-only `META_WHATSAPP_VERIFY_TOKEN`, and a non-empty `hub.challenge`; a valid request receives the raw challenge and invalid verification receives `403`. The request logger records only the pathname, so the query token is not copied into application logs.
 
-- a webhook verification endpoint for Meta's subscription challenge;
+The later inbound-message task will add:
+
 - an event endpoint that validates webhook authenticity;
 - normalization from Meta payloads to an internal InboundMessage;
 - idempotent processing keyed by external event/message identity.
