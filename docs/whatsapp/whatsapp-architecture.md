@@ -10,17 +10,23 @@ Tokens, verify secrets, application secrets, phone identifiers, and temporary tu
 
 The Mastra server exposes `GET /webhooks/whatsapp` as an explicitly public route for Meta's subscription challenge. It requires `hub.mode=subscribe`, the server-only `META_WHATSAPP_VERIFY_TOKEN`, and a non-empty `hub.challenge`; a valid request receives the raw challenge and invalid verification receives `403`. The request logger records only the pathname, so the query token is not copied into application logs.
 
-The later inbound-message task will add:
+`POST /webhooks/whatsapp` is the explicitly public inbound event boundary. It
+reads the original request bytes, verifies `X-Hub-Signature-256` with the
+server-only Meta app secret, and only then parses JSON. Missing, malformed, or
+incorrect signatures receive `401` before payload validation or database work.
 
-- an event endpoint that validates webhook authenticity;
-- normalization from Meta payloads to an internal InboundMessage;
-- idempotent processing keyed by external event/message identity.
+Authenticated payloads are validated and normalized into the application-owned
+`InboundMessage` type. The current MVP accepts text messages, preserves Meta's
+message ID and provider timestamp, and safely ignores status-only events and
+unsupported message types. Raw Meta nesting does not leave this adapter.
 
 The normalized message contains only needed transport facts such as external ID, receiving phoneNumberId, sender phone, supported content/type, and timestamp. Domain and AI modules should not depend on the raw Meta payload.
 
 ## Tenant resolution
 
-WhatsAppConnection maps Meta phoneNumberId to exactly one business.
+WhatsAppConnection maps Meta phoneNumberId to exactly one business. The database
+enforces global phoneNumberId uniqueness while allowing one business to own
+multiple active or inactive connections.
 
     receiving phoneNumberId
       -> trusted WhatsAppConnection lookup
@@ -28,6 +34,24 @@ WhatsAppConnection maps Meta phoneNumberId to exactly one business.
       -> TenantContext
 
 This happens before customer, conversation, business catalog, or AI data is read. The customer's sender phone is resolved only inside that tenant.
+
+An authentic event for an unmapped number is acknowledged with `200` and logged
+using safe provider/application identifiers. This avoids a provider retry storm
+for an internal configuration issue; it never falls back to another business.
+The current endpoint stops after normalization and tenant resolution. Customer,
+conversation, agent, and reply processing remain later work.
+
+Development mappings are provisioned explicitly with the server's
+`whatsapp:connect` script and a selected business ID; webhook handling never
+creates or reassigns a connection implicitly.
+
+## API versions
+
+The Graph API version configured for future outbound requests is independent
+from the webhook subscription version selected in Meta. Inbound normalization
+depends on the stable message payload fields it validates rather than a
+hard-coded Graph API version. This work therefore does not change the existing
+outbound `META_WHATSAPP_API_VERSION` setting.
 
 ## Outbound transport
 

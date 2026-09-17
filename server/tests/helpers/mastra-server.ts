@@ -11,6 +11,7 @@ type StartedMastraServer = {
 type StartMastraServerOptions = {
   databaseUrl: string;
   port: number;
+  whatsappAppSecret?: string;
   whatsappVerifyToken?: string;
 };
 
@@ -56,6 +57,7 @@ const stopProcess = async (process_: ChildProcess): Promise<void> => {
 export const startMastraServer = async ({
   databaseUrl,
   port,
+  whatsappAppSecret = 'test-only-whatsapp-app-secret',
   whatsappVerifyToken = 'test-only-whatsapp-verify-token',
 }: StartMastraServerOptions): Promise<StartedMastraServer> => {
   const baseUrl = `http://127.0.0.1:${port}`;
@@ -68,6 +70,7 @@ export const startMastraServer = async ({
       DATABASE_URL: databaseUrl,
       DASHBOARD_URL: process.env.DASHBOARD_URL ?? 'http://localhost:5173',
       MASTRA_OBSERVABILITY_DATABASE_PATH: ':memory:',
+      META_WHATSAPP_APP_SECRET: whatsappAppSecret,
       META_WHATSAPP_VERIFY_TOKEN: whatsappVerifyToken,
       NODE_ENV: 'test',
       PORT: String(port),

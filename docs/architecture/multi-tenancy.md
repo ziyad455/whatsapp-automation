@@ -21,7 +21,7 @@ TenantContext is the trusted request-scoped authorization boundary. For authenti
       role: BusinessUserRole;
     }
 
-Mastra stores this object under the typed `tenant` key in its request-scoped `RequestContext`. The request ID remains a separate correlation value. A future WhatsApp resolver will construct a machine-to-machine tenant context from a verified `WhatsAppConnection`; it must not reuse the dashboard membership resolver or accept a sender-selected tenant.
+Mastra stores this object under the typed `tenant` key in its request-scoped `RequestContext`. The request ID remains a separate correlation value. The WhatsApp boundary constructs a machine-to-machine `WhatsAppTenantContext` containing only the trusted business and connection IDs after signature validation and `WhatsAppConnection` lookup. It does not reuse the dashboard membership resolver or accept a sender-selected tenant. Connecting that context to conversation and AI processing remains a later task.
 
 The invariant is that protected tenant services and repositories require a resolved context rather than accepting arbitrary business IDs throughout normal application code.
 

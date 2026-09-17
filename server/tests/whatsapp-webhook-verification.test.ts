@@ -39,8 +39,9 @@ describe('Meta WhatsApp webhook verification', () => {
   });
 
   it('registers the endpoint as an explicitly public GET route', () => {
-    expect(whatsappWebhookRoutes).toHaveLength(1);
-    expect(whatsappWebhookRoutes[0]).toMatchObject({
+    const route = whatsappWebhookRoutes.find(candidate => candidate.method === 'GET');
+
+    expect(route).toMatchObject({
       path: '/webhooks/whatsapp',
       method: 'GET',
       requiresAuth: false,
