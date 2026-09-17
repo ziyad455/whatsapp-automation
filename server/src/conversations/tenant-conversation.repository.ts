@@ -1,8 +1,8 @@
 import type {
   ConversationChannel,
   ConversationMessageRole,
-  Prisma,
 } from '../generated/prisma/client';
+import { Prisma } from '../generated/prisma/client';
 import { prisma } from '../db/prisma';
 import type { TenantContext } from '../tenancy/tenant-context';
 import { pendingCustomerActionsSchema, type PendingCustomerAction } from '../ai/customer-capabilities';
@@ -27,25 +27,38 @@ export const createTenantConversationRepository = (tenant: TenantContext) => ({
       },
     }),
 
-  getOrCreateByChannelParticipant: (
+  getOrCreateByChannelParticipant: async (
     channel: ConversationChannel,
     participantKey: string,
-  ) =>
-    prisma.conversation.upsert({
-      where: {
-        businessId_channel_participantKey: {
-          businessId: tenant.businessId,
-          channel,
-          participantKey,
-        },
-      },
-      update: {},
-      create: {
+  ) => {
+    const identity = {
+      businessId_channel_participantKey: {
         businessId: tenant.businessId,
         channel,
         participantKey,
       },
-    }),
+    };
+
+    try {
+      return await prisma.conversation.upsert({
+        where: identity,
+        update: {},
+        create: {
+          businessId: tenant.businessId,
+          channel,
+          participantKey,
+        },
+      });
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
+        throw error;
+      }
+
+      const conversation = await prisma.conversation.findUnique({ where: identity });
+      if (!conversation) throw error;
+      return conversation;
+    }
+  },
 
   appendMessage: async (
     conversationId: string,

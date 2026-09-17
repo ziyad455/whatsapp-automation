@@ -118,6 +118,13 @@ enum ConversationMessageRole {
   @@map("conversation_message_role")
 }
 
+enum WhatsAppConnectionStatus {
+  ACTIVE
+  INACTIVE
+
+  @@map("whatsapp_connection_status")
+}
+
 model Business {
   id                       String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                     String                  @db.Text
@@ -145,21 +152,37 @@ model Business {
   auditEvents              AuditEvent[]
   conversations            Conversation[]
   conversationMessages     ConversationMessage[]
+  whatsappConnections      WhatsAppConnection[]
 
   @@map("businesses")
 }
 
+model WhatsAppConnection {
+  id                        String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId                String                   @map("business_id") @db.Uuid
+  phoneNumberId             String                   @unique(map: "whatsapp_connections_phone_number_id_unique") @map("phone_number_id") @db.VarChar(100)
+  whatsappBusinessAccountId String                   @map("whatsapp_business_account_id") @db.VarChar(100)
+  displayPhoneNumber        String?                  @map("display_phone_number") @db.Text
+  status                    WhatsAppConnectionStatus @default(ACTIVE)
+  createdAt                 DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  business                  Business                 @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, status], map: "whatsapp_connections_business_id_status_index")
+  @@map("whatsapp_connections")
+}
+
 model Conversation {
-  id             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  businessId     String              @map("business_id") @db.Uuid
+  id             String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId     String                @map("business_id") @db.Uuid
   channel        ConversationChannel
-  participantKey String              @map("participant_key") @db.Text
-  pendingActions Json                @default("[]") @map("pending_actions") @db.JsonB
-  messageCount   Int                 @default(0) @map("message_count")
-  lastMessageAt  DateTime            @default(now()) @map("last_message_at") @db.Timestamptz(6)
-  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  business       Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  participantKey String                @map("participant_key") @db.Text
+  pendingActions Json                  @default("[]") @map("pending_actions") @db.JsonB
+  messageCount   Int                   @default(0) @map("message_count")
+  lastMessageAt  DateTime              @default(now()) @map("last_message_at") @db.Timestamptz(6)
+  createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  business       Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
   messages       ConversationMessage[]
 
   @@unique([businessId, id], map: "conversations_business_id_id_unique")

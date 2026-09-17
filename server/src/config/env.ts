@@ -59,7 +59,7 @@ const serverEnvironmentSchema = z.object({
   ),
   META_WHATSAPP_ACCESS_TOKEN: optionalEnvironmentVariable,
   META_WHATSAPP_VERIFY_TOKEN: requiredEnvironmentVariable('META_WHATSAPP_VERIFY_TOKEN'),
-  META_WHATSAPP_APP_SECRET: optionalEnvironmentVariable,
+  META_WHATSAPP_APP_SECRET: requiredEnvironmentVariable('META_WHATSAPP_APP_SECRET'),
   MASTRA_OBSERVABILITY_DATABASE_PATH: optionalEnvironmentVariable,
   TURSO_DATABASE_URL: optionalEnvironmentVariable,
   TURSO_AUTH_TOKEN: optionalEnvironmentVariable,

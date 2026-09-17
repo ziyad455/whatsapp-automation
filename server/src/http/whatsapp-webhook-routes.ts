@@ -1,6 +1,9 @@
 import { timingSafeEqual } from 'node:crypto';
 import { registerApiRoute } from '@mastra/core/server';
 import { env } from '../config/env';
+import { processInboundWhatsAppWebhook } from '../whatsapp/process-inbound-webhook';
+import { applicationLogger } from './logger';
+import { getOrCreateRequestId } from './request-context';
 
 type VerificationResult =
   | { readonly status: 200; readonly body: string }
@@ -45,6 +48,44 @@ export const whatsappWebhookRoutes = [
         context.req.raw,
         env.META_WHATSAPP_VERIFY_TOKEN,
       );
+
+      return context.text(result.body, result.status);
+    },
+  }),
+  registerApiRoute('/webhooks/whatsapp', {
+    method: 'POST',
+    requiresAuth: false,
+    handler: async context => {
+      const requestId = getOrCreateRequestId(context.get('requestContext'));
+      const result = await processInboundWhatsAppWebhook(context.req.raw, {
+        appSecret: env.META_WHATSAPP_APP_SECRET,
+      });
+
+      if (!result.accepted) {
+        applicationLogger.warn('WhatsApp webhook rejected', {
+          requestId,
+          reason: result.status === 401 ? 'invalid-signature' : 'invalid-payload',
+        });
+        return context.text(result.body, result.status);
+      }
+
+      for (const resolved of result.messages) {
+        if (resolved.tenant) {
+          applicationLogger.info('WhatsApp inbound tenant resolved', {
+            requestId,
+            externalMessageId: resolved.message.externalMessageId,
+            phoneNumberId: resolved.message.phoneNumberId,
+            businessId: resolved.tenant.businessId,
+            whatsappConnectionId: resolved.tenant.whatsappConnectionId,
+          });
+        } else {
+          applicationLogger.warn('WhatsApp inbound tenant unresolved', {
+            requestId,
+            externalMessageId: resolved.message.externalMessageId,
+            phoneNumberId: resolved.message.phoneNumberId,
+          });
+        }
+      }
 
       return context.text(result.body, result.status);
     },

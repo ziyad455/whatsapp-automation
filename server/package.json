@@ -20,6 +20,7 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:status": "prisma migrate status",
     "db:studio": "prisma studio",
+    "whatsapp:connect": "node --env-file=.env --import tsx scripts/connect-whatsapp-number.ts",
     "build": "mastra build",
     "start": "mastra start"
   },

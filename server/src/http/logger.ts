@@ -15,6 +15,8 @@ export const applicationLogger = new PinoLogger({
       '*.token',
       '*.verify_token',
       'DATABASE_URL',
+      'META_WHATSAPP_ACCESS_TOKEN',
+      'META_WHATSAPP_APP_SECRET',
       'META_WHATSAPP_VERIFY_TOKEN',
     ],
     censor: '[REDACTED]',
