@@ -61,9 +61,11 @@ const BUSINESS_RELATION_PHRASES = [
 ];
 
 const COMPACT_BUSINESS_REQUESTS = [
-  /^(?:what(?:'s|\s+is|\s+are)?\s+)?(?:the\s+)?(?:current\s+)?(?:price|cost|rates?|availability|hours?|opening\s+hours?|rules?|polic(?:y|ies))\??$/iu,
+  /^(?:(?:what(?:'s|\s+is|\s+are)?)\s+)?(?:the\s+)?(?:(?:current|updated|daily|weekly|monthly|hourly|nightly)\s+)*(?:price|cost|rates?|availability|hours?|opening\s+hours?|rules?|polic(?:y|ies))\??$/iu,
   /^(?:prix|tarif|disponibilité|disponibilite|horaires?|règles?|regles?|conditions?)\??$/iu,
   /^(?:ثمن|سعر|شحال|التوفر|أوقات\s+العمل|اوقات\s+العمل|القوانين|الشروط)[؟?]?$/u,
+  /^(?:show|give)\s+(?:me\s+)?(?:the\s+)?(?:current\s+)?business\s+(?:details?|information|profile)[?.!]?$/iu,
+  /^(?:find|show|list|get)\s+(?:(?:me|the|all|current|available|automatic|manual|this)\s+){0,4}(?:products?|cars?|vehicles?|services?)(?:\s+(?:details?|information))?[?.!]?$/iu,
 ];
 
 const NAMED_CATALOG_REQUESTS = [
@@ -76,7 +78,7 @@ const NAMED_CATALOG_REQUESTS = [
   /\b(?:quel\s+est\s+le\s+prix|combien\s+coûte|combien\s+coute)\s+(?:de\s+|du\s+|la\s+|le\s+)?\p{Lu}[\p{L}\p{N}-]*/u,
   /(?:ثمن|سعر)\s+[\p{Script=Arabic}\p{N}-]{2,30}(?:\s+[\p{Script=Arabic}\p{N}-]{2,30})?[؟?]?$/u,
   /\b(?:chhal|taman)\b.{0,40}\b\p{Lu}[\p{L}\p{N}-]*/u,
-  /^find\s+(?:the\s+)?\p{Lu}[\p{L}\p{N}-]*(?:\s+\p{Lu}[\p{L}\p{N}-]*)?[?.!]?$/u,
+  /^find\s+(?:the\s+)?\p{L}[\p{L}\p{N}-]*(?:\s+\p{L}[\p{L}\p{N}-]*)?[?.!]?$/iu,
 ];
 
 const NEUTRAL_GREETINGS = new Set([
