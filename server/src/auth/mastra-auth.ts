@@ -4,6 +4,6 @@ import { auth } from './auth';
 export const mastraAuth = new MastraAuthBetterAuth({
   auth,
   signUpEnabled: false,
-  public: ['/health', '/ready', '/version', '/auth/api/*'],
+  public: ['/health', '/ready', '/version', '/auth/api/*', '/webhooks/whatsapp'],
   protected: ['/api/*'],
 });

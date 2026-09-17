@@ -127,17 +127,20 @@ export class CustomerServiceRun {
   offerActions(actions: readonly RequestedCustomerAction[]): readonly PendingCustomerAction[] {
     if (this.#closed) throw new Error('Authorized AI runtime context is required.');
     const candidates = requestedCustomerActionsSchema.parse(actions);
-    const accepted = candidates.flatMap(action => {
-      if (!isPendingActionAvailable(action, this.#capabilities)) return [];
+    const accepted: PendingCustomerAction[] = [];
+    for (const action of candidates) {
+      if (!isPendingActionAvailable(action, this.#capabilities)) continue;
       if (action.type === 'LIST_AVAILABLE_ENTITIES') {
-        return this.#knownEntityTypes.has(action.entityType) ? [action] : [];
+        if (this.#knownEntityTypes.has(action.entityType)) accepted.push(action);
+        continue;
       }
       if (action.type === 'CHECK_ENTITY_FIELD') {
         const label = this.#knownEntityTypes.get(action.entityType)?.get(action.field);
-        return label ? [{ ...action, label }] : [];
+        if (label) accepted.push({ ...action, label });
+        continue;
       }
-      return [action];
-    });
+      accepted.push(action);
+    }
     this.#offeredActions = pendingCustomerActionsSchema.parse(
       accepted.filter((action, index) => accepted.findIndex(candidate =>
         JSON.stringify(candidate) === JSON.stringify(action)) === index),

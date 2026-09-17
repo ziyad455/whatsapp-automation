@@ -45,6 +45,21 @@ const serverEnvironmentSchema = z.object({
   ),
   BETTER_AUTH_URL: requiredHttpOrigin('BETTER_AUTH_URL'),
   DASHBOARD_URL: requiredHttpOrigin('DASHBOARD_URL'),
+  META_WHATSAPP_API_VERSION: optionalEnvironmentVariable.refine(
+    value => value === undefined || /^v\d+\.\d+$/.test(value),
+    'META_WHATSAPP_API_VERSION must use a value such as v25.0',
+  ),
+  META_WHATSAPP_PHONE_NUMBER_ID: optionalEnvironmentVariable.refine(
+    value => value === undefined || /^\d+$/.test(value),
+    'META_WHATSAPP_PHONE_NUMBER_ID must contain digits only',
+  ),
+  META_WHATSAPP_BUSINESS_ACCOUNT_ID: optionalEnvironmentVariable.refine(
+    value => value === undefined || /^\d+$/.test(value),
+    'META_WHATSAPP_BUSINESS_ACCOUNT_ID must contain digits only',
+  ),
+  META_WHATSAPP_ACCESS_TOKEN: optionalEnvironmentVariable,
+  META_WHATSAPP_VERIFY_TOKEN: requiredEnvironmentVariable('META_WHATSAPP_VERIFY_TOKEN'),
+  META_WHATSAPP_APP_SECRET: optionalEnvironmentVariable,
   MASTRA_OBSERVABILITY_DATABASE_PATH: optionalEnvironmentVariable,
   TURSO_DATABASE_URL: optionalEnvironmentVariable,
   TURSO_AUTH_TOKEN: optionalEnvironmentVariable,

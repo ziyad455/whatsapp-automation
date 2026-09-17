@@ -8,6 +8,7 @@ import { requireAuthenticatedUser, requireTenantContext } from './request-contex
 import { dashboardAgentRoutes } from './dashboard-agent-routes';
 import { sprintFourRoutes } from './sprint-four-routes';
 import { aiPlaygroundRoutes } from './ai-playground-routes';
+import { whatsappWebhookRoutes } from './whatsapp-webhook-routes';
 
 export const applicationRoutes = [
   registerApiRoute('/auth/api/*', {
@@ -15,6 +16,7 @@ export const applicationRoutes = [
     requiresAuth: false,
     handler: context => mastraAuth.handleAuthRequest(context.req.raw),
   }),
+  ...whatsappWebhookRoutes,
   registerApiRoute('/version', {
     method: 'GET',
     requiresAuth: false,

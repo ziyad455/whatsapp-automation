@@ -62,6 +62,11 @@ const providerFor = (
     description: null,
     schemaVersion: 1,
     fieldCount: 2,
+    fields: ownEntity.fields.map(field => ({
+      key: field.key,
+      label: field.label,
+      type: field.type,
+    })),
   }] : [];
   return provider;
 };
