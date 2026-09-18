@@ -77,6 +77,7 @@ export const whatsappWebhookRoutes = [
             phoneNumberId: resolved.message.phoneNumberId,
             businessId: resolved.tenant.businessId,
             whatsappConnectionId: resolved.tenant.whatsappConnectionId,
+            customerId: resolved.customer?.id,
           });
         } else {
           applicationLogger.warn('WhatsApp inbound tenant unresolved', {

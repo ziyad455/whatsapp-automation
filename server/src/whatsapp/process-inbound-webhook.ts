@@ -1,4 +1,8 @@
 import { InvalidWhatsAppWebhookPayloadError, normalizeWhatsAppWebhook, type InboundMessage } from './normalize-inbound-message';
+import {
+  resolveOrCreateWhatsAppCustomer,
+  type WhatsAppCustomerIdentity,
+} from '../customers/whatsapp-customer.service';
 import { resolveWhatsAppTenant, type WhatsAppTenantContext } from './whatsapp-tenant-context';
 import { verifyMetaWebhookSignature } from './webhook-signature';
 
@@ -11,6 +15,7 @@ export type WhatsAppWebhookRejection = {
 export type ResolvedInboundMessage = {
   readonly message: InboundMessage;
   readonly tenant: WhatsAppTenantContext | null;
+  readonly customer: WhatsAppCustomerIdentity | null;
 };
 
 export type AcceptedWhatsAppWebhook = {
@@ -29,6 +34,10 @@ export interface WhatsAppWebhookProcessorDependencies {
   readonly resolveTenant?: (
     phoneNumberId: string,
   ) => Promise<WhatsAppTenantContext | null>;
+  readonly resolveCustomer?: (
+    tenant: WhatsAppTenantContext,
+    customerPhone: string,
+  ) => Promise<WhatsAppCustomerIdentity>;
 }
 
 const parseJson = (rawBody: Uint8Array): unknown => {
@@ -62,7 +71,10 @@ export const processInboundWhatsAppWebhook = async (
   }
 
   const resolveTenant = dependencies.resolveTenant ?? resolveWhatsAppTenant;
+  const resolveCustomer = dependencies.resolveCustomer ??
+    resolveOrCreateWhatsAppCustomer;
   const resolvedByPhoneNumberId = new Map<string, WhatsAppTenantContext | null>();
+  const customersByTenantAndPhone = new Map<string, WhatsAppCustomerIdentity>();
   const resolvedMessages: ResolvedInboundMessage[] = [];
 
   for (const message of messages) {
@@ -71,7 +83,18 @@ export const processInboundWhatsAppWebhook = async (
       tenant = await resolveTenant(message.phoneNumberId);
       resolvedByPhoneNumberId.set(message.phoneNumberId, tenant);
     }
-    resolvedMessages.push({ message, tenant });
+    if (!tenant) {
+      resolvedMessages.push({ message, tenant: null, customer: null });
+      continue;
+    }
+
+    const customerKey = `${tenant.businessId}:${message.customerPhone}`;
+    let customer = customersByTenantAndPhone.get(customerKey);
+    if (!customer) {
+      customer = await resolveCustomer(tenant, message.customerPhone);
+      customersByTenantAndPhone.set(customerKey, customer);
+    }
+    resolvedMessages.push({ message, tenant, customer });
   }
 
   return {

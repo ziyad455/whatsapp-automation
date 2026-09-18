@@ -153,6 +153,7 @@ model Business {
   conversations            Conversation[]
   conversationMessages     ConversationMessage[]
   whatsappConnections      WhatsAppConnection[]
+  customers                Customer[]
 
   @@map("businesses")
 }
@@ -170,6 +171,18 @@ model WhatsAppConnection {
 
   @@index([businessId, status], map: "whatsapp_connections_business_id_status_index")
   @@map("whatsapp_connections")
+}
+
+model Customer {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId    String   @map("business_id") @db.Uuid
+  whatsappPhone String   @map("whatsapp_phone") @db.VarChar(100)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  business      Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, whatsappPhone], map: "customers_business_id_whatsapp_phone_unique")
+  @@map("customers")
 }
 
 model Conversation {

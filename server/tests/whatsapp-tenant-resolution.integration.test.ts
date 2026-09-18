@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBusiness } from '../src/businesses/business.repository';
 import { closeDatabaseConnection, prisma } from '../src/db/prisma';
-import { createWhatsAppConnection } from '../src/whatsapp/whatsapp-connection.repository';
+import {
+  createWhatsAppConnection,
+  findActiveWhatsAppConnectionForTenant,
+} from '../src/whatsapp/whatsapp-connection.repository';
 import { resolveWhatsAppTenant } from '../src/whatsapp/whatsapp-tenant-context';
 import { assertIsolatedTestDatabase } from './helpers/assert-test-database';
 
@@ -150,5 +153,37 @@ describe('WhatsApp phone number tenant resolution', () => {
 
     await resolveWhatsAppTenant('888888888888888', { findConnection });
     expect(findConnection).toHaveBeenCalledExactlyOnceWith('888888888888888');
+  });
+
+  it('binds an outbound connection to both trusted business and connection IDs', async () => {
+    const [atlas, barber] = await Promise.all([
+      createTestBusiness('Outbound Connection Atlas'),
+      createTestBusiness('Outbound Connection Barber'),
+    ]);
+    const [atlasConnection, barberConnection] = await Promise.all([
+      createWhatsAppConnection({
+        businessId: atlas.id,
+        phoneNumberId: '999999999999991',
+        whatsappBusinessAccountId: '900000000000009',
+      }),
+      createWhatsAppConnection({
+        businessId: barber.id,
+        phoneNumberId: '999999999999992',
+        whatsappBusinessAccountId: '900000000000010',
+      }),
+    ]);
+
+    await expect(findActiveWhatsAppConnectionForTenant({
+      businessId: atlas.id,
+      whatsappConnectionId: atlasConnection.id,
+    })).resolves.toMatchObject({
+      id: atlasConnection.id,
+      businessId: atlas.id,
+      phoneNumberId: '999999999999991',
+    });
+    await expect(findActiveWhatsAppConnectionForTenant({
+      businessId: atlas.id,
+      whatsappConnectionId: barberConnection.id,
+    })).resolves.toBeNull();
   });
 });

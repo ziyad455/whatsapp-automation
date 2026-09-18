@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const metaMessageSchema = z.object({
   id: z.string().min(1),
-  from: z.string().min(1),
+  from: z.string().regex(/^\d+$/),
   timestamp: z.string().regex(/^\d+$/),
   type: z.string().min(1),
   text: z.object({ body: z.string().min(1).max(4_096) }).optional(),
@@ -30,7 +30,7 @@ export const inboundMessageSchema = z.object({
   provider: z.literal('WHATSAPP'),
   externalMessageId: z.string().min(1),
   phoneNumberId: z.string().regex(/^\d+$/),
-  customerPhone: z.string().min(1),
+  customerPhone: z.string().regex(/^\d+$/),
   type: z.literal('TEXT'),
   content: z.object({ text: z.string().min(1).max(4_096) }).strict(),
   timestamp: z.date(),
