@@ -52,9 +52,10 @@ The authenticated `/businesses` route lists memberships before TenantContext res
 1. Validate the Meta webhook boundary.
 2. Read the receiving Meta phoneNumberId from the normalized event.
 3. Resolve a WhatsAppConnection that maps it to exactly one business.
-4. Construct TenantContext before reading customer or business data.
+4. Construct the trusted WhatsAppTenantContext before reading customer or business data.
+5. Resolve or create the sender as a Customer inside that business.
 
-The sender's phone number identifies a customer only inside the resolved business; it does not select the tenant.
+The sender's provider-normalized numeric phone value is preserved unchanged and identifies a customer only inside the resolved business; it does not select the tenant. PostgreSQL enforces uniqueness on `(businessId, whatsappPhone)`, not on the phone globally.
 
 ## AI and tools
 

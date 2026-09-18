@@ -73,10 +73,17 @@ describe('WhatsApp inbound webhook boundary', () => {
       whatsappConnectionId: randomUUID(),
     };
     const resolveTenant = vi.fn().mockResolvedValue(tenant);
+    const customer = {
+      id: randomUUID(),
+      businessId: tenant.businessId,
+      whatsappPhone: '212600000001',
+    };
+    const resolveCustomer = vi.fn().mockResolvedValue(customer);
 
     const result = await processInboundWhatsAppWebhook(signedRequest(body), {
       appSecret,
       resolveTenant,
+      resolveCustomer,
     });
 
     expect(result).toMatchObject({
@@ -89,9 +96,14 @@ describe('WhatsApp inbound webhook boundary', () => {
           customerPhone: '212600000001',
         },
         tenant,
+        customer,
       }],
     });
     expect(resolveTenant).toHaveBeenCalledWith('111111111111111');
+    expect(resolveCustomer).toHaveBeenCalledExactlyOnceWith(
+      tenant,
+      '212600000001',
+    );
   });
 
   it('acknowledges an authentic message for an unmapped receiving number without fallback', async () => {
@@ -99,18 +111,21 @@ describe('WhatsApp inbound webhook boundary', () => {
       textChange('444444444444444', '212600000001', 'wamid.unmapped'),
     ));
     const resolveTenant = vi.fn().mockResolvedValue(null);
+    const resolveCustomer = vi.fn();
 
     const result = await processInboundWhatsAppWebhook(signedRequest(body), {
       appSecret,
       resolveTenant,
+      resolveCustomer,
     });
 
     expect(result).toMatchObject({
       accepted: true,
       status: 200,
-      messages: [{ tenant: null }],
+      messages: [{ tenant: null, customer: null }],
     });
     expect(resolveTenant).toHaveBeenCalledExactlyOnceWith('444444444444444');
+    expect(resolveCustomer).not.toHaveBeenCalled();
   });
 
   it.each([

@@ -38,8 +38,11 @@ This happens before customer, conversation, business catalog, or AI data is read
 An authentic event for an unmapped number is acknowledged with `200` and logged
 using safe provider/application identifiers. This avoids a provider retry storm
 for an internal configuration issue; it never falls back to another business.
-The current endpoint stops after normalization and tenant resolution. Customer,
-conversation, agent, and reply processing remain later work.
+For a mapped number, the endpoint resolves or creates a Customer by the compound
+`(businessId, whatsappPhone)` identity. The numeric `messages[].from` value is
+preserved unchanged; it never selects a tenant and is not globally unique.
+Customer creation is atomic and database-constrained for concurrent deliveries.
+The current endpoint stops before conversation, agent, and reply processing.
 
 Development mappings are provisioned explicitly with the server's
 `whatsapp:connect` script and a selected business ID; webhook handling never
@@ -55,7 +58,11 @@ outbound `META_WHATSAPP_API_VERSION` setting.
 
 ## Outbound transport
 
-A dedicated send-message service translates normalized outbound messages to Meta requests. AI, handoff, lead, and follow-up code use this service rather than embedding provider calls.
+A dedicated send-message service resolves the active connection using both the trusted business and connection IDs, then delegates to the Meta transport. The transport alone owns the configured Graph API version, `/{phoneNumberId}/messages` URL, bearer credential, text payload, ten-second timeout, and provider response parsing. AI, handoff, lead, and follow-up code use this service rather than embedding provider calls. A successful provider response becomes the application-owned `{ provider, accepted, externalMessageId }` result.
+
+Development currently uses one server-side access token, while the sender `phoneNumberId` always comes from the resolved `WhatsAppConnection`. This keeps credentials out of domain and AI code and leaves a narrow transport boundary for later encrypted per-connection credentials.
+
+Provider failures are application-owned errors: invalid requests, authentication, rate limiting, provider unavailability, network failure, timeout, invalid response, configuration, and unavailable connection. Rate limits, provider 5xx responses, network failures, and timeouts are classified as retryable signals, but this service performs no automatic retry. Until an outbox/idempotency design exists, callers must reconcile ambiguous outcomes before retrying to avoid duplicate customer-visible messages.
 
 Application message state and Meta transport state are related but distinct. Outbound records should reflect pending/sent and later delivered/read/failed outcomes as supported.
 

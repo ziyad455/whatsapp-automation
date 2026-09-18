@@ -3,6 +3,7 @@ import type {
   WhatsAppConnection,
 } from '../generated/prisma/client';
 import { prisma } from '../db/prisma';
+import type { WhatsAppTenantContext } from './whatsapp-tenant-context';
 
 export interface CreateWhatsAppConnectionInput {
   readonly businessId: string;
@@ -35,4 +36,20 @@ export const findActiveWhatsAppConnectionByPhoneNumberId = (
   prisma.whatsAppConnection.findFirst({
     where: { phoneNumberId, status: 'ACTIVE' },
     select: { id: true, businessId: true },
+  });
+
+export type WhatsAppOutboundConnectionRecord = Prisma.WhatsAppConnectionGetPayload<{
+  select: { id: true; businessId: true; phoneNumberId: true };
+}>;
+
+export const findActiveWhatsAppConnectionForTenant = (
+  tenant: WhatsAppTenantContext,
+): Promise<WhatsAppOutboundConnectionRecord | null> =>
+  prisma.whatsAppConnection.findFirst({
+    where: {
+      id: tenant.whatsappConnectionId,
+      businessId: tenant.businessId,
+      status: 'ACTIVE',
+    },
+    select: { id: true, businessId: true, phoneNumberId: true },
   });

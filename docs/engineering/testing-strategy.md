@@ -71,6 +71,8 @@ Use the car-rental, salon, and gym fixtures to prove one shared agent supports d
 
 Test signature validation, webhook verification, event normalization, number-to-business mapping, duplicate delivery, outbound mapping, status events, and provider failure classification with controlled fixtures/fakes before relying on live Meta testing.
 
+Current coverage additionally verifies tenant-scoped WhatsApp Customer creation, repeat and concurrent resolution, same-sender isolation across businesses, database uniqueness, connection-selected outbound sender identity, official text payload mapping, safe application-owned results, timeouts, network failures, and Meta 400/401/403/429/5xx classification without live provider calls.
+
 ## Workflow tests
 
 Test scheduling, cancellation after customer reply, final eligibility, quiet hours, frequency caps, concurrent claiming, transient retry, permanent failure, and restart-safe persistence.
