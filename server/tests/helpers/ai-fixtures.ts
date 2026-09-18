@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { BusinessDataProvider, CurrentFactMetadata } from '../../src/business-data/business-data-provider';
-import type { TenantContext } from '../../src/tenancy/tenant-context';
+import type { TenantContext, TenantScope } from '../../src/tenancy/tenant-context';
 
 export const fakeTenant = (): TenantContext => ({
   userId: randomUUID(), businessId: randomUUID(), membershipId: randomUUID(), role: 'OWNER',
@@ -10,7 +10,7 @@ export const fakeMetadata = (overrides: Partial<CurrentFactMetadata> = {}): Curr
   freshnessStatus: 'FRESH', lastVerifiedAt: new Date('2026-09-01T12:00:00Z'),
   staleAfterSeconds: null, isStale: false, ...overrides,
 });
-export const fakeProvider = (tenant: TenantContext, name = 'Atlas Cars'): BusinessDataProvider => ({
+export const fakeProvider = (tenant: TenantScope, name = 'Atlas Cars'): BusinessDataProvider => ({
   getBusinessProfile: async () => ({
     id: tenant.businessId, name, category: 'EXAMPLE', description: 'Local customer service.',
     phone: 'private-phone', address: 'private-address', timezone: 'Africa/Casablanca', currency: 'MAD',

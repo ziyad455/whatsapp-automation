@@ -6,15 +6,18 @@
       -> Meta webhook
       -> endpoint/signature verification
       -> payload validation and normalization
-      -> duplicate check
       -> receiving phoneNumberId resolves business
       -> TenantContext is created
       -> tenant customer is resolved or created
+      -> external Meta message ID is atomically claimed
+      -> duplicate is acknowledged and stopped
       -> active conversation is resolved or created
       -> inbound Message is persisted
       -> server evaluates AI, HUMAN, or PAUSED behavior
 
 Persist the accepted inbound message before depending on an external LLM or outbound provider. Provider failure must not erase the customer's request.
+
+Inbound claims use `RECEIVED`, `PROCESSING`, `PROCESSED`, and `FAILED` to distinguish durable receipt from successful processing. A newly claimed text message enters the shared conversation runtime and is marked `PROCESSED` only after Meta accepts the tenant-bound reply. Conversation, model, or outbound transport failures mark the inbound row `FAILED`; duplicate webhook deliveries never create a second agent run or reply.
 
 ## AI-controlled conversation
 

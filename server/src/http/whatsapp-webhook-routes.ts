@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { registerApiRoute } from '@mastra/core/server';
 import { env } from '../config/env';
+import { handleWhatsAppAgentMessage } from '../channels/whatsapp-agent-channel';
 import { processInboundWhatsAppWebhook } from '../whatsapp/process-inbound-webhook';
 import { applicationLogger } from './logger';
 import { getOrCreateRequestId } from './request-context';
@@ -70,21 +71,85 @@ export const whatsappWebhookRoutes = [
       }
 
       for (const resolved of result.messages) {
-        if (resolved.tenant) {
-          applicationLogger.info('WhatsApp inbound tenant resolved', {
+        applicationLogger.info('WhatsApp inbound message claimed', {
+          requestId,
+          externalMessageId: resolved.message.externalMessageId,
+          phoneNumberId: resolved.message.phoneNumberId,
+          businessId: resolved.tenant.businessId,
+          whatsappConnectionId: resolved.tenant.whatsappConnectionId,
+          customerId: resolved.customer.id,
+          inboxMessageId: resolved.inboxMessageId,
+          duplicate: false,
+        });
+
+        try {
+          const response = await handleWhatsAppAgentMessage(resolved);
+          applicationLogger.info('WhatsApp inbound message processed', {
             requestId,
             externalMessageId: resolved.message.externalMessageId,
-            phoneNumberId: resolved.message.phoneNumberId,
             businessId: resolved.tenant.businessId,
             whatsappConnectionId: resolved.tenant.whatsappConnectionId,
-            customerId: resolved.customer?.id,
+            customerId: resolved.customer.id,
+            inboxMessageId: resolved.inboxMessageId,
+            conversationId: response.conversationId,
+            outboundExternalMessageId: response.outbound.externalMessageId,
           });
-        } else {
-          applicationLogger.warn('WhatsApp inbound tenant unresolved', {
+        } catch (error) {
+          applicationLogger.error('WhatsApp inbound message processing failed', {
             requestId,
             externalMessageId: resolved.message.externalMessageId,
-            phoneNumberId: resolved.message.phoneNumberId,
+            businessId: resolved.tenant.businessId,
+            whatsappConnectionId: resolved.tenant.whatsappConnectionId,
+            customerId: resolved.customer.id,
+            inboxMessageId: resolved.inboxMessageId,
+            errorKind: error instanceof Error ? error.name : 'UnknownError',
           });
+        }
+      }
+
+      for (const duplicate of result.duplicates) {
+        applicationLogger.info('WhatsApp inbound duplicate acknowledged', {
+          requestId,
+          externalMessageId: duplicate.message.externalMessageId,
+          phoneNumberId: duplicate.message.phoneNumberId,
+          businessId: duplicate.tenant.businessId,
+          whatsappConnectionId: duplicate.tenant.whatsappConnectionId,
+          duplicate: true,
+        });
+      }
+
+      for (const message of result.unresolvedMessages) {
+        applicationLogger.warn('WhatsApp inbound tenant unresolved', {
+          requestId,
+          externalMessageId: message.externalMessageId,
+          phoneNumberId: message.phoneNumberId,
+        });
+      }
+
+      for (const status of result.statusEvents) {
+        const outcome = typeof status.outcome === 'string'
+          ? status.outcome
+          : status.outcome.outcome;
+        const attributes = {
+          requestId,
+          externalMessageId: status.event.externalMessageId,
+          phoneNumberId: status.event.phoneNumberId,
+          status: status.event.status,
+          outcome,
+          ...(status.tenant
+            ? {
+                businessId: status.tenant.businessId,
+                whatsappConnectionId: status.tenant.whatsappConnectionId,
+              }
+            : {}),
+          ...(status.event.failureCode
+            ? { providerFailureCode: status.event.failureCode }
+            : {}),
+        };
+        if (outcome === 'UNKNOWN' || outcome === 'UNRESOLVED_TENANT') {
+          applicationLogger.warn('WhatsApp status event not matched', attributes);
+        } else {
+          applicationLogger.info('WhatsApp status event handled', attributes);
         }
       }
 

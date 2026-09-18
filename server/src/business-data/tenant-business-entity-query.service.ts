@@ -5,7 +5,7 @@ import {
   type BusinessFieldDefinition,
 } from '../generated/prisma/client';
 import { prisma } from '../db/prisma';
-import type { TenantContext } from '../tenancy/tenant-context';
+import type { TenantScope } from '../tenancy/tenant-context';
 import { parseFieldOptions, validateFieldValue } from './dynamic-entity-validation';
 
 export const DEFAULT_ENTITY_QUERY_LIMIT = 25;
@@ -135,7 +135,7 @@ const validateFilter = (
 };
 
 export const createTenantBusinessEntityQueryService = (
-  tenant: TenantContext,
+  tenant: TenantScope,
 ): TenantBusinessEntityQueryService => {
   const businessId = tenant.businessId;
 

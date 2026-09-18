@@ -4,10 +4,10 @@ import type {
 } from '../generated/prisma/client';
 import { Prisma } from '../generated/prisma/client';
 import { prisma } from '../db/prisma';
-import type { TenantContext } from '../tenancy/tenant-context';
+import type { TenantScope } from '../tenancy/tenant-context';
 import { pendingCustomerActionsSchema, type PendingCustomerAction } from '../ai/customer-capabilities';
 
-export const createTenantConversationRepository = (tenant: TenantContext) => ({
+export const createTenantConversationRepository = (tenant: TenantScope) => ({
   findById: (conversationId: string) =>
     prisma.conversation.findFirst({
       where: { id: conversationId, businessId: tenant.businessId },

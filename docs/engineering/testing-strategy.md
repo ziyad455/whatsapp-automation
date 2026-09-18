@@ -73,6 +73,8 @@ Test signature validation, webhook verification, event normalization, number-to-
 
 Current coverage additionally verifies tenant-scoped WhatsApp Customer creation, repeat and concurrent resolution, same-sender isolation across businesses, database uniqueness, connection-selected outbound sender identity, official text payload mapping, safe application-owned results, timeouts, network failures, and Meta 400/401/403/429/5xx classification without live provider calls.
 
+Inbound transport-ledger coverage replays signed payloads sequentially and concurrently to prove one unique Meta ID creates one claim and one downstream-eligible result, while distinct IDs remain distinct. Outbound status coverage verifies persisted API acceptance, normalized status-only routing, safe failed metadata, duplicate-event idempotency, monotonic sent/delivered/read progression, delayed-event handling, unknown-ID no-ops, and cross-tenant denial.
+
 ## Workflow tests
 
 Test scheduling, cancellation after customer reply, final eligibility, quiet hours, frequency caps, concurrent claiming, transient retry, permanent failure, and restart-safe persistence.

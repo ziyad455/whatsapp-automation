@@ -1,9 +1,18 @@
 import { applicationLogger } from '../http/logger';
+import {
+  resolveOrCreateWhatsAppCustomer,
+  type WhatsAppCustomerIdentity,
+} from '../customers/whatsapp-customer.service';
 import { createMetaWhatsAppTransport } from './meta-whatsapp-transport';
 import {
   findActiveWhatsAppConnectionForTenant,
   type WhatsAppOutboundConnectionRecord,
 } from './whatsapp-connection.repository';
+import {
+  createPendingOutgoingWhatsAppMessage,
+  markOutgoingWhatsAppMessageFailed,
+  markOutgoingWhatsAppMessageSent,
+} from './whatsapp-message.repository';
 import {
   WhatsAppSendError,
   type WhatsAppSendResult,
@@ -28,6 +37,13 @@ export interface WhatsAppSendServiceDependencies {
   ) => Promise<WhatsAppOutboundConnectionRecord | null>;
   readonly transport?: WhatsAppTextTransport;
   readonly logger?: WhatsAppSendLogger;
+  readonly resolveCustomer?: (
+    tenant: WhatsAppTenantContext,
+    customerPhone: string,
+  ) => Promise<WhatsAppCustomerIdentity>;
+  readonly createPendingMessage?: typeof createPendingOutgoingWhatsAppMessage;
+  readonly markMessageSent?: typeof markOutgoingWhatsAppMessageSent;
+  readonly markMessageFailed?: typeof markOutgoingWhatsAppMessageFailed;
 }
 
 export const sendWhatsAppText = async (
@@ -47,21 +63,50 @@ export const sendWhatsAppText = async (
     });
   }
 
-  const transport = dependencies.transport ?? createMetaWhatsAppTransport();
+  const resolveCustomer = dependencies.resolveCustomer ??
+    resolveOrCreateWhatsAppCustomer;
+  const customer = await resolveCustomer(input.tenant, input.to);
+  const createPendingMessage = dependencies.createPendingMessage ??
+    createPendingOutgoingWhatsAppMessage;
+  const pendingMessage = await createPendingMessage({
+    tenant: input.tenant,
+    customerId: customer.id,
+    recipientPhone: input.to,
+  });
+
+  let result: WhatsAppSendResult;
 
   try {
-    const result = await transport.sendText({
+    const transport = dependencies.transport ?? createMetaWhatsAppTransport();
+    result = await transport.sendText({
       phoneNumberId: connection.phoneNumberId,
       to: input.to,
       text: input.text,
     });
-    logger.info('WhatsApp text accepted by provider', {
-      businessId: connection.businessId,
-      connectionId: connection.id,
-      externalMessageId: result.externalMessageId,
-    });
-    return result;
   } catch (error) {
+    const markMessageFailed = dependencies.markMessageFailed ??
+      markOutgoingWhatsAppMessageFailed;
+    const failure = error instanceof WhatsAppSendError
+      ? {
+          code: error.code,
+          title: error.message,
+          ...(error.providerStatus === undefined
+            ? {}
+            : { details: `Meta HTTP status ${error.providerStatus}` }),
+        }
+      : {
+          code: 'UNEXPECTED_TRANSPORT_ERROR',
+          title: 'The WhatsApp transport failed unexpectedly.',
+        };
+    try {
+      await markMessageFailed(input.tenant, pendingMessage.id, failure);
+    } catch {
+      logger.warn('WhatsApp failure state could not be persisted', {
+        businessId: connection.businessId,
+        connectionId: connection.id,
+        messageId: pendingMessage.id,
+      });
+    }
     if (error instanceof WhatsAppSendError) {
       logger.warn('WhatsApp text send failed', {
         businessId: connection.businessId,
@@ -75,4 +120,19 @@ export const sendWhatsAppText = async (
     }
     throw error;
   }
+
+  const markMessageSent = dependencies.markMessageSent ??
+    markOutgoingWhatsAppMessageSent;
+  await markMessageSent(
+    input.tenant,
+    pendingMessage.id,
+    result.externalMessageId,
+  );
+  logger.info('WhatsApp text accepted by provider', {
+    businessId: connection.businessId,
+    connectionId: connection.id,
+    messageId: pendingMessage.id,
+    externalMessageId: result.externalMessageId,
+  });
+  return result;
 };

@@ -2,7 +2,7 @@ import { RequestContext } from '@mastra/core/request-context';
 import type { MastraLanguageModel } from '@mastra/core/agent';
 import { customerServiceAgent } from '../mastra/agents/customer-service-agent';
 import { createDatabaseBusinessDataProvider } from '../business-data/database-business-data-provider';
-import { TENANT_CONTEXT_KEY, type TenantContext } from '../tenancy/tenant-context';
+import { TENANT_CONTEXT_KEY, type TenantScope } from '../tenancy/tenant-context';
 import { buildBusinessContext, type BusinessDataProviderFactory } from './business-context';
 import { buildBusinessInstructions } from './business-instructions';
 import { buildConversationMessages, type ConversationHistory, type ConversationMessage } from './conversation-context';
@@ -25,7 +25,7 @@ import { customerServiceBusinessTools } from '../mastra/tools/business-informati
 import type { CustomerServiceToolName } from './agent-diagnostics';
 
 export interface CustomerServiceAgentInput {
-  readonly tenant: TenantContext;
+  readonly tenant: TenantScope;
   readonly message: string;
   // Trusted application history; the conversation boundary authorizes its tenant/thread.
   readonly history?: ConversationHistory;
@@ -83,7 +83,9 @@ export const runCustomerServiceAgentWithDiagnostics = async (
   input: CustomerServiceAgentInput,
   dependencies: CustomerServiceAgentDependencies = {},
 ): Promise<CustomerServiceAgentDetailedResult> => {
-  const tenant = customerServiceTenantContextSchema.parse(input.tenant);
+  const tenant = customerServiceTenantContextSchema.parse({
+    businessId: input.tenant.businessId,
+  });
   const originalMessages = buildConversationMessages(tenant, input.message, input.history);
   const pendingActions = pendingCustomerActionsSchema.parse(input.pendingActions ?? []);
   const acceptsPendingAction = pendingActions.length > 0 && isPendingActionAcceptance(input.message);
