@@ -17,7 +17,7 @@
 
 Persist the accepted inbound message before depending on an external LLM or outbound provider. Provider failure must not erase the customer's request.
 
-Inbound claims use `RECEIVED`, `PROCESSING`, `PROCESSED`, and `FAILED` to distinguish durable receipt from successful processing. A newly claimed text message enters the shared conversation runtime and is marked `PROCESSED` only after Meta accepts the tenant-bound reply. Conversation, model, or outbound transport failures mark the inbound row `FAILED`; duplicate webhook deliveries never create a second agent run or reply.
+Inbound claims use `RECEIVED`, `PROCESSING`, `PROCESSED`, and `FAILED` to distinguish durable receipt from successful processing. The claimed transport row is linked to the canonical inbound ConversationMessage. In AI mode it is marked `PROCESSED` only after Meta accepts the tenant-bound reply; HUMAN, PAUSED, and CLOSED conversations are successfully processed once the inbound message is persisted without automation. Conversation, model, or outbound transport failures mark the inbound row `FAILED` and make the webhook return a retryable server error. A failed claim that never reached canonical history may be atomically reclaimed from a later delivery; once linked, duplicate deliveries cannot create a second canonical message, agent run, or reply.
 
 ## AI-controlled conversation
 
@@ -31,13 +31,13 @@ Inbound claims use `RECEIVED`, `PROCESSING`, `PROCESSED`, and `FAILED` to distin
       -> WhatsApp send service
       -> transport state updates
 
-A mode change or customer activity that occurs during processing must not allow a stale automated reply to bypass current state.
+A generated reply is committed only when the conversation is still OPEN, AI, and at the control version observed before generation. A takeover or pause that commits first suppresses the stale response before transport. The canonical reply and its PENDING WhatsApp transport reservation are created atomically. Mode changes and additional replies return a conflict until that reservation becomes SENT or FAILED, so a control change cannot overtake an in-flight Meta send.
 
 ## Human-controlled conversation
 
 In HUMAN mode, inbound messages are persisted and surfaced to staff but do not invoke an automatic AI reply. An authorized dashboard reply follows the normal outbound persistence and transport path and identifies a human sender type.
 
-PAUSED handling follows the same transport and persistence invariants, but the exact set of disabled automations remains an [open handoff question](../ai/human-handoff.md#open-questions).
+PAUSED handling follows the same transport and persistence invariants. It stores inbound messages, sends no automatic AI reply, has no required staff assignment, and requires takeover to HUMAN before a manual reply. Later conversation-scoped follow-up/reactivation workers must also reject PAUSED conversations when those workers are introduced.
 
 ## Deduplication and idempotency
 
@@ -56,5 +56,5 @@ Reject unauthentic requests, fail validation predictably, and acknowledge or ign
 ## Open Questions
 
 - The exact internal message-type support beyond text is not yet defined.
-- Transaction boundaries between persistence, AI execution, and outbound sending need an explicit idempotent processing design.
-- Conversation creation/reuse rules, such as when an old conversation is closed and a new one begins, are not yet specified.
+- Outbound Meta acceptance and PostgreSQL cannot be one transaction; ambiguous provider-success/local-failure reconciliation still requires a later outbox/retry design.
+- The current rule is one durable WhatsApp conversation per business/customer. Product semantics for closing it and creating a later historical conversation remain unspecified.

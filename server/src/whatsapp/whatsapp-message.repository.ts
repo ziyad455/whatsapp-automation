@@ -36,6 +36,30 @@ export const claimInboundWhatsAppMessage = async (
       error instanceof PrismaRuntime.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
+      const reclaimed = await prisma.whatsAppMessage.updateMany({
+        where: {
+          businessId: tenant.businessId,
+          whatsappConnectionId: tenant.whatsappConnectionId,
+          customerId,
+          direction: 'INBOUND',
+          externalMessageId: message.externalMessageId,
+          processingStatus: 'FAILED',
+          conversationMessageId: null,
+        },
+        data: {
+          processingStatus: 'RECEIVED',
+          processingStartedAt: null,
+          processingFailedAt: null,
+          processedAt: null,
+        },
+      });
+      if (reclaimed.count === 1) {
+        const existing = await prisma.whatsAppMessage.findUniqueOrThrow({
+          where: { externalMessageId: message.externalMessageId },
+          select: { id: true },
+        });
+        return Object.freeze({ outcome: 'CLAIMED', messageId: existing.id });
+      }
       return Object.freeze({ outcome: 'DUPLICATE' });
     }
     throw error;
@@ -87,6 +111,7 @@ export interface CreatePendingOutgoingWhatsAppMessageInput {
   readonly tenant: WhatsAppTenantContext;
   readonly customerId: string;
   readonly recipientPhone: string;
+  readonly conversationMessageId?: string;
 }
 
 export const createPendingOutgoingWhatsAppMessage = (
@@ -96,9 +121,28 @@ export const createPendingOutgoingWhatsAppMessage = (
     businessId: input.tenant.businessId,
     whatsappConnectionId: input.tenant.whatsappConnectionId,
     customerId: input.customerId,
+    ...(input.conversationMessageId
+      ? { conversationMessageId: input.conversationMessageId }
+      : {}),
     direction: 'OUTBOUND',
     recipientPhone: input.recipientPhone,
     deliveryStatus: 'PENDING',
+  },
+  select: { id: true },
+});
+
+export const findPendingOutgoingWhatsAppMessage = (
+  tenant: WhatsAppTenantContext,
+  messageId: string,
+  recipientPhone: string,
+) => prisma.whatsAppMessage.findFirst({
+  where: {
+    id: messageId,
+    businessId: tenant.businessId,
+    whatsappConnectionId: tenant.whatsappConnectionId,
+    direction: 'OUTBOUND',
+    deliveryStatus: 'PENDING',
+    recipientPhone,
   },
   select: { id: true },
 });

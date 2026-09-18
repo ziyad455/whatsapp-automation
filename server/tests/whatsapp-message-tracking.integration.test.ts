@@ -194,7 +194,7 @@ describe('WhatsApp inbound idempotency and outbound status persistence', () => {
   it('keeps failed and incomplete inbound work recoverable through explicit state', async () => {
     const { tenant } = await createTenant('Inbound Recovery State', '855555555555555');
     const customer = await resolveOrCreateWhatsAppCustomer(tenant, '212600000001');
-    const claim = await claimInboundWhatsAppMessage(tenant, customer.id, {
+    const inboundMessage = {
       provider: 'WHATSAPP',
       externalMessageId: 'wamid.recoverable-inbound',
       phoneNumberId: '855555555555555',
@@ -202,13 +202,25 @@ describe('WhatsApp inbound idempotency and outbound status persistence', () => {
       type: 'TEXT',
       content: { text: 'Test' },
       timestamp: new Date('2026-09-18T09:00:00.000Z'),
-    });
+    } as const;
+    const claim = await claimInboundWhatsAppMessage(
+      tenant,
+      customer.id,
+      inboundMessage,
+    );
     if (claim.outcome !== 'CLAIMED') throw new Error('Expected initial claim.');
 
     await startInboundWhatsAppMessageProcessing(tenant, claim.messageId);
     await markInboundWhatsAppMessageFailed(tenant, claim.messageId);
-    await startInboundWhatsAppMessageProcessing(tenant, claim.messageId);
-    await markInboundWhatsAppMessageProcessed(tenant, claim.messageId);
+    const reclaimed = await claimInboundWhatsAppMessage(
+      tenant,
+      customer.id,
+      inboundMessage,
+    );
+    expect(reclaimed).toEqual({ outcome: 'CLAIMED', messageId: claim.messageId });
+    if (reclaimed.outcome !== 'CLAIMED') throw new Error('Expected failed claim retry.');
+    await startInboundWhatsAppMessageProcessing(tenant, reclaimed.messageId);
+    await markInboundWhatsAppMessageProcessed(tenant, reclaimed.messageId);
 
     await expect(prisma.whatsAppMessage.findUnique({
       where: { id: claim.messageId },

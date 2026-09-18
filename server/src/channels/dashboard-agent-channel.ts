@@ -113,8 +113,10 @@ export const handleDashboardConversationRequest = async (input: {
     conversation: {
       id: conversation.id,
       messages: messages.map(message => ({
-        id: message.id,
-        role: message.role === 'CUSTOMER' ? 'customer' as const : 'assistant' as const,
+      id: message.id,
+        role: message.senderType === 'CUSTOMER'
+          ? 'customer' as const
+          : 'assistant' as const,
         content: message.content,
         createdAt: message.createdAt.toISOString(),
       })),

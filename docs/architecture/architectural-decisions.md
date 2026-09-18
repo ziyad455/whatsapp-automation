@@ -74,6 +74,8 @@ AuditEvent is append-only tenant operational data. Auditable services write the 
 
 Conversation control is explicit state (AI, HUMAN, or PAUSED), persisted and enforced by the server. It is not inferred independently on every turn or controlled only by UI visibility.
 
+The application maps AgentResult signals to structured handoff reasons and owns the actual transition; generated prose cannot mutate conversation state. HUMAN means active staff handling and permits manual replies. PAUSED stores inbound messages but suppresses AI and conversation-scoped automation, requires no assignment, and must be taken over before staff can reply. Returning to AI clears assignment, handoff reason, and pending read actions. Mode changes increment a control version, and automated or manual replies use compare-and-set persistence so an earlier control change wins over a stale response.
+
 ## Database-backed scheduled automation
 
 Follow-ups and later campaigns use durable database records and recurring workflows rather than in-memory timers. This permits restart recovery, cancellation, inspection, and safe retry handling.

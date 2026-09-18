@@ -75,6 +75,8 @@ Current coverage additionally verifies tenant-scoped WhatsApp Customer creation,
 
 Inbound transport-ledger coverage replays signed payloads sequentially and concurrently to prove one unique Meta ID creates one claim and one downstream-eligible result, while distinct IDs remain distinct. Outbound status coverage verifies persisted API acceptance, normalized status-only routing, safe failed metadata, duplicate-event idempotency, monotonic sent/delivered/read progression, delayed-event handling, unknown-ID no-ops, and cross-tenant denial.
 
+Conversation-operations coverage verifies one durable business/customer thread, canonical inbound/AI/HUMAN history linked to the WhatsApp ledger, same-business assignment constraints, activity ordering, tenant-scoped inbox/detail routes, manual send success/failure visibility, and audited takeover/pause/return transitions. Channel tests prove HUMAN and PAUSED always persist inbound messages without generation, application-owned escalation persists a structured reason, provider/runtime failure enters human attention, and a control-version mismatch suppresses an AI response after an earlier takeover.
+
 ## Workflow tests
 
 Test scheduling, cancellation after customer reply, final eligibility, quiet hours, frequency caps, concurrent claiming, transient retry, permanent failure, and restart-safe persistence.

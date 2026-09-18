@@ -17,7 +17,7 @@ The implemented agent has the stable Mastra ID `customer-service` and is registe
       -> model text reply
       -> application-owned AgentResult
 
-Channel adapters own authentication, tenant resolution, and channel conversation identity before this flow. The dashboard adapter uses a verified Better Auth session, authorized membership selection, and authenticated user participant. The future WhatsApp adapter will use a verified Meta event, receiving `phoneNumberId`, and customer identity. Neither channel duplicates conversation processing or the agent, and neither supplies tenant identity through model-visible input.
+Channel adapters own authentication, tenant resolution, and channel conversation identity before this flow. The dashboard simulation adapter uses a verified Better Auth session, authorized membership selection, and authenticated user participant. The WhatsApp adapter uses a verified Meta event, receiving `phoneNumberId`, and tenant-owned customer identity. Neither channel duplicates agent logic or supplies tenant identity through model-visible input. The staff inbox reads and controls that same persistent WhatsApp conversation rather than creating another dashboard transcript.
 
 The agent definition may be long-lived, but tenant context, tool bindings, and conversation input are request-scoped. Mutable business state must never be stored globally on the shared agent.
 

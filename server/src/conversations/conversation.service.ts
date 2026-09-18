@@ -12,18 +12,43 @@ import {
 const conversationIdentitySchema = z.object({
   channel: z.enum(['DASHBOARD', 'WHATSAPP']),
   participantKey: z.string().trim().min(1).max(200),
+  customerId: z.uuid().optional(),
+  whatsappConnectionId: z.uuid().optional(),
   requestedConversationId: z.uuid().optional(),
   createIfMissing: z.boolean(),
-}).strict();
+}).strict().superRefine((value, context) => {
+  const hasWhatsAppIdentity = Boolean(value.customerId && value.whatsappConnectionId);
+  if (value.channel === 'WHATSAPP' && !hasWhatsAppIdentity) {
+    context.addIssue({
+      code: 'custom',
+      message: 'WhatsApp conversations require trusted customer and connection identities.',
+    });
+  }
+  if (value.channel === 'DASHBOARD' && (value.customerId || value.whatsappConnectionId)) {
+    context.addIssue({
+      code: 'custom',
+      message: 'Dashboard simulation conversations cannot use WhatsApp identities.',
+    });
+  }
+});
 
 export type ConversationReference = Pick<
   Conversation,
-  'id' | 'businessId' | 'channel' | 'participantKey' | 'pendingActions'
+  | 'id'
+  | 'businessId'
+  | 'channel'
+  | 'participantKey'
+  | 'pendingActions'
+  | 'mode'
+  | 'status'
+  | 'controlVersion'
 >;
 
 export interface ResolveChannelConversationInput {
   readonly channel: ConversationChannel;
   readonly participantKey: string;
+  readonly customerId?: string;
+  readonly whatsappConnectionId?: string;
   readonly requestedConversationId?: string;
   readonly createIfMissing: boolean;
 }
@@ -61,5 +86,11 @@ export const resolveChannelConversation = async (
   return repository.getOrCreateByChannelParticipant(
     identity.channel,
     identity.participantKey,
+    {
+      ...(identity.customerId ? { customerId: identity.customerId } : {}),
+      ...(identity.whatsappConnectionId
+        ? { whatsappConnectionId: identity.whatsappConnectionId }
+        : {}),
+    },
   );
 };

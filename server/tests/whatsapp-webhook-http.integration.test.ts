@@ -24,12 +24,11 @@ const payload = `{
       "value": {
         "messaging_product": "whatsapp",
         "metadata": { "phone_number_id": "${phoneNumberId}" },
-        "messages": [{
-          "from": "212600000001",
+        "statuses": [{
+          "recipient_id": "212600000001",
           "id": "wamid.http-test",
           "timestamp": "1789632000",
-          "type": "text",
-          "text": { "body": "Hello" }
+          "status": "sent"
         }]
       }
     }]
@@ -90,7 +89,7 @@ describe('WhatsApp webhook HTTP route', () => {
         'content-type': 'application/json',
         'x-hub-signature-256': signatureFor(payload),
       },
-      body: payload.replace('Hello', 'Tampered'),
+      body: payload.replace('"status": "sent"', '"status": "read"'),
     });
 
     expect(response.status).toBe(401);

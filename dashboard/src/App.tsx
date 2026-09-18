@@ -7,6 +7,8 @@ import { AiPlaygroundPage } from './pages/AiPlaygroundPage'
 import { BusinessProfilePage } from './pages/BusinessProfilePage'
 import { BusinessRulesPage } from './pages/BusinessRulesPage'
 import { BusinessUnderstandingPage } from './pages/BusinessUnderstandingPage'
+import { ConversationDetailPage } from './pages/ConversationDetailPage'
+import { ConversationInboxPage } from './pages/ConversationInboxPage'
 import { EntityFormPage } from './pages/EntityFormPage'
 import { EntityListPage } from './pages/EntityListPage'
 import { EntityTypesPage } from './pages/EntityTypesPage'
@@ -47,6 +49,8 @@ function App() {
             <Route path="schema/:entityTypeKey" element={<SchemaEditorPage />} />
             <Route path="understanding" element={<BusinessUnderstandingPage />} />
             <Route path="agent-chat" element={<AgentChatPage />} />
+            <Route path="conversations" element={<ConversationInboxPage />} />
+            <Route path="conversations/:conversationId" element={<ConversationDetailPage />} />
             {import.meta.env.DEV ? <Route path="ai-playground" element={<AiPlaygroundPage />} /> : null}
           </Route>
         </Route>

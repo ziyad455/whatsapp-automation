@@ -246,6 +246,51 @@ describe('WhatsApp send-message application service', () => {
     expect(transport.sendText).not.toHaveBeenCalled();
   });
 
+  it('sends an existing tenant-bound PENDING reservation without creating another row', async () => {
+    const tenant = {
+      businessId: randomUUID(),
+      whatsappConnectionId: randomUUID(),
+    };
+    const pendingMessageId = randomUUID();
+    const resolveCustomer = vi.fn();
+    const createPendingMessage = vi.fn();
+    const markMessageSent = vi.fn().mockResolvedValue(undefined);
+
+    await expect(sendWhatsAppText({
+      tenant,
+      to: '212600000001',
+      text: 'Reserved reply',
+      reservedTransportMessageId: pendingMessageId,
+    }, {
+      findConnection: vi.fn().mockResolvedValue({
+        id: tenant.whatsappConnectionId,
+        businessId: tenant.businessId,
+        phoneNumberId: '111111111111111',
+      }),
+      findPendingMessage: vi.fn().mockResolvedValue({ id: pendingMessageId }),
+      resolveCustomer,
+      createPendingMessage,
+      markMessageSent,
+      transport: { sendText: vi.fn().mockResolvedValue({
+        provider: 'WHATSAPP',
+        accepted: true,
+        externalMessageId: 'wamid.reserved',
+      }) },
+      logger: { info: vi.fn(), warn: vi.fn() },
+    })).resolves.toMatchObject({
+      externalMessageId: 'wamid.reserved',
+      transportMessageId: pendingMessageId,
+    });
+
+    expect(resolveCustomer).not.toHaveBeenCalled();
+    expect(createPendingMessage).not.toHaveBeenCalled();
+    expect(markMessageSent).toHaveBeenCalledWith(
+      tenant,
+      pendingMessageId,
+      'wamid.reserved',
+    );
+  });
+
   it('persists a safe failed state when the provider rejects a pending send', async () => {
     const tenant = {
       businessId: randomUUID(),
