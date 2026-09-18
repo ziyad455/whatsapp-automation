@@ -161,6 +161,66 @@ export interface AgentConversation {
   messages: AgentConversationMessage[]
 }
 
+export type ConversationMode = 'AI' | 'HUMAN' | 'PAUSED'
+export type ConversationStatus = 'OPEN' | 'CLOSED'
+export type ConversationHandoffReason =
+  | 'CUSTOMER_REQUEST'
+  | 'LOW_CONFIDENCE'
+  | 'PURCHASE_INTENT'
+  | 'COMPLAINT'
+  | 'MANUAL'
+export type ConversationSenderType = 'CUSTOMER' | 'AI' | 'HUMAN' | 'SYSTEM'
+export type ConversationTransportStatus =
+  | 'PENDING'
+  | 'SENT'
+  | 'DELIVERED'
+  | 'READ'
+  | 'FAILED'
+
+export interface ConversationAssignment {
+  membershipId: string
+  userId: string
+  name: string
+  email: string
+}
+
+export interface ConversationMessage {
+  id: string
+  sequence: number
+  direction: 'INBOUND' | 'OUTBOUND'
+  senderType: ConversationSenderType
+  content: string
+  createdAt: string
+  sentBy: ConversationAssignment | null
+  transport: {
+    externalMessageId: string | null
+    deliveryStatus: ConversationTransportStatus | null
+    failureTitle: string | null
+  } | null
+}
+
+export interface ConversationCustomer {
+  id: string
+  whatsappPhone: string
+}
+
+export interface ConversationInboxItem {
+  id: string
+  customer: ConversationCustomer
+  mode: ConversationMode
+  status: ConversationStatus
+  handoffReason: ConversationHandoffReason | null
+  attentionRequired: boolean
+  assignment: ConversationAssignment | null
+  lastActivityAt: string
+  latestMessage: ConversationMessage | null
+}
+
+export interface ConversationDetail extends Omit<ConversationInboxItem, 'latestMessage'> {
+  createdAt: string
+  messages: ConversationMessage[]
+}
+
 export interface BusinessUnderstanding {
   profile: Omit<BusinessProfile, 'id'> | null
   openingHours: OpeningHour[]

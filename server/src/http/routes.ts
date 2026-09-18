@@ -8,6 +8,7 @@ import { requireAuthenticatedUser, requireTenantContext } from './request-contex
 import { dashboardAgentRoutes } from './dashboard-agent-routes';
 import { sprintFourRoutes } from './sprint-four-routes';
 import { aiPlaygroundRoutes } from './ai-playground-routes';
+import { conversationDashboardRoutes } from './conversation-dashboard-routes';
 import { whatsappWebhookRoutes } from './whatsapp-webhook-routes';
 
 export const applicationRoutes = [
@@ -69,6 +70,7 @@ export const applicationRoutes = [
     },
   }),
   ...dashboardAgentRoutes,
+  ...conversationDashboardRoutes,
   ...aiPlaygroundRoutes,
   ...sprintFourRoutes,
 ];

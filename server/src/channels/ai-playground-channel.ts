@@ -124,7 +124,9 @@ export const handleAiPlaygroundConversation = async (input: {
       id: conversation.id,
       messages: messages.map(message => ({
         id: message.id,
-        role: message.role === 'CUSTOMER' ? 'customer' as const : 'assistant' as const,
+        role: message.senderType === 'CUSTOMER'
+          ? 'customer' as const
+          : 'assistant' as const,
         content: message.content,
         createdAt: message.createdAt.toISOString(),
       })),

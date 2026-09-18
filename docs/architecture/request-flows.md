@@ -72,7 +72,7 @@ Dashboard and WhatsApp tenant and conversation resolution remain transport-speci
 
 The model does not provide businessId to the tool.
 
-The implemented boundary returns a Zod-validated AgentResult using six narrow read capabilities for profile, hours, active rules, dynamic type discovery, entity search, and exact entity lookup. The model supplies the normal reply text; application code owns intent/language normalization, routing/handoff metadata, and localized safe substitution when current facts lack fresh evidence. Dashboard and WhatsApp conversation history are persisted and tenant-authorized; conversation modes and handoff remain later tasks. Callers enter through the application invocation boundary with trusted business scope and authorized history; arbitrary request payload fields and message text are not tenant resolution. The run capability is invalidated after completion or failure.
+The implemented boundary returns a Zod-validated AgentResult using six narrow read capabilities for profile, hours, active rules, dynamic type discovery, entity search, and exact entity lookup. The model supplies the normal reply text; application code owns intent/language normalization, routing/handoff metadata, localized safe substitution, and the resulting server-side escalation decision. WhatsApp canonical history is complete while only a bounded recent subset enters the agent. A response is committed only if the conversation remains OPEN/AI at the control version observed before generation, and that commit atomically reserves the PENDING outbound transport. Conversation control cannot change until the reserved send reaches SENT or FAILED. Callers enter through the application invocation boundary with trusted business scope and authorized history; arbitrary request payload fields and message text are not tenant resolution. The run capability is invalidated after completion or failure.
 
 The initial provider is DatabaseBusinessDataProvider. Every call delegates to current tenant-scoped services and performs the required PostgreSQL reads at call time. Source and freshness status travel with factual results; no agent, module global, or session-held context blob substitutes for that lookup.
 
@@ -80,10 +80,11 @@ The initial provider is DatabaseBusinessDataProvider. Every call delegates to cu
 
     Dashboard action
       -> authenticate and authorize staff
-      -> enforce conversation mode and action permission
-      -> persist outbound human message
-      -> WhatsApp transport sends message
-      -> delivery/read/failure events update transport state
+      -> tenant-scope conversation ID and require OPEN/HUMAN
+      -> reserve HUMAN outbound message against control version
+      -> use stored customer and WhatsAppConnection
+      -> WhatsApp transport creates linked PENDING record and sends
+      -> SENT/DELIVERED/READ/FAILED remains visible on canonical history
 
 ## Scheduled follow-up
 

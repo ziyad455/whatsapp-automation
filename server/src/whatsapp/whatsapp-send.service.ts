@@ -10,6 +10,7 @@ import {
 } from './whatsapp-connection.repository';
 import {
   createPendingOutgoingWhatsAppMessage,
+  findPendingOutgoingWhatsAppMessage,
   markOutgoingWhatsAppMessageFailed,
   markOutgoingWhatsAppMessageSent,
 } from './whatsapp-message.repository';
@@ -29,6 +30,12 @@ export interface SendWhatsAppTextInput {
   readonly tenant: WhatsAppTenantContext;
   readonly to: string;
   readonly text: string;
+  readonly conversationMessageId?: string;
+  readonly reservedTransportMessageId?: string;
+}
+
+export interface PersistedWhatsAppSendResult extends WhatsAppSendResult {
+  readonly transportMessageId: string;
 }
 
 export interface WhatsAppSendServiceDependencies {
@@ -42,6 +49,7 @@ export interface WhatsAppSendServiceDependencies {
     customerPhone: string,
   ) => Promise<WhatsAppCustomerIdentity>;
   readonly createPendingMessage?: typeof createPendingOutgoingWhatsAppMessage;
+  readonly findPendingMessage?: typeof findPendingOutgoingWhatsAppMessage;
   readonly markMessageSent?: typeof markOutgoingWhatsAppMessageSent;
   readonly markMessageFailed?: typeof markOutgoingWhatsAppMessageFailed;
 }
@@ -49,30 +57,57 @@ export interface WhatsAppSendServiceDependencies {
 export const sendWhatsAppText = async (
   input: SendWhatsAppTextInput,
   dependencies: WhatsAppSendServiceDependencies = {},
-): Promise<WhatsAppSendResult> => {
+): Promise<PersistedWhatsAppSendResult> => {
   const findConnection = dependencies.findConnection ??
     findActiveWhatsAppConnectionForTenant;
   const logger = dependencies.logger ?? applicationLogger;
   const connection = await findConnection(input.tenant);
 
   if (!connection) {
-    throw new WhatsAppSendError({
+    const error = new WhatsAppSendError({
       code: 'CONNECTION_UNAVAILABLE',
       message: 'The tenant has no active WhatsApp connection for this request.',
       retryable: false,
     });
+    if (input.reservedTransportMessageId) {
+      const markMessageFailed = dependencies.markMessageFailed ??
+        markOutgoingWhatsAppMessageFailed;
+      await markMessageFailed(input.tenant, input.reservedTransportMessageId, {
+        code: error.code,
+        title: error.message,
+      });
+    }
+    throw error;
   }
 
-  const resolveCustomer = dependencies.resolveCustomer ??
-    resolveOrCreateWhatsAppCustomer;
-  const customer = await resolveCustomer(input.tenant, input.to);
-  const createPendingMessage = dependencies.createPendingMessage ??
-    createPendingOutgoingWhatsAppMessage;
-  const pendingMessage = await createPendingMessage({
-    tenant: input.tenant,
-    customerId: customer.id,
-    recipientPhone: input.to,
-  });
+  const pendingMessage = input.reservedTransportMessageId
+    ? await (dependencies.findPendingMessage ?? findPendingOutgoingWhatsAppMessage)(
+        input.tenant,
+        input.reservedTransportMessageId,
+        input.to,
+      )
+    : await (async () => {
+        const resolveCustomer = dependencies.resolveCustomer ??
+          resolveOrCreateWhatsAppCustomer;
+        const customer = await resolveCustomer(input.tenant, input.to);
+        const createPendingMessage = dependencies.createPendingMessage ??
+          createPendingOutgoingWhatsAppMessage;
+        return createPendingMessage({
+          tenant: input.tenant,
+          customerId: customer.id,
+          recipientPhone: input.to,
+          ...(input.conversationMessageId
+            ? { conversationMessageId: input.conversationMessageId }
+            : {}),
+        });
+      })();
+  if (!pendingMessage) {
+    throw new WhatsAppSendError({
+      code: 'INVALID_REQUEST',
+      message: 'The reserved WhatsApp message is unavailable for sending.',
+      retryable: false,
+    });
+  }
 
   let result: WhatsAppSendResult;
 
@@ -134,5 +169,5 @@ export const sendWhatsAppText = async (
     messageId: pendingMessage.id,
     externalMessageId: result.externalMessageId,
   });
-  return result;
+  return { ...result, transportMessageId: pendingMessage.id };
 };

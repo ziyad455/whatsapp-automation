@@ -70,6 +70,7 @@ export const whatsappWebhookRoutes = [
         return context.text(result.body, result.status);
       }
 
+      let downstreamFailed = false;
       for (const resolved of result.messages) {
         applicationLogger.info('WhatsApp inbound message claimed', {
           requestId,
@@ -92,9 +93,14 @@ export const whatsappWebhookRoutes = [
             customerId: resolved.customer.id,
             inboxMessageId: resolved.inboxMessageId,
             conversationId: response.conversationId,
-            outboundExternalMessageId: response.outbound.externalMessageId,
+            outcome: response.outcome,
+            mode: response.mode,
+            ...(response.outbound
+              ? { outboundExternalMessageId: response.outbound.externalMessageId }
+              : {}),
           });
         } catch (error) {
+          downstreamFailed = true;
           applicationLogger.error('WhatsApp inbound message processing failed', {
             requestId,
             externalMessageId: resolved.message.externalMessageId,
@@ -151,6 +157,10 @@ export const whatsappWebhookRoutes = [
         } else {
           applicationLogger.info('WhatsApp status event handled', attributes);
         }
+      }
+
+      if (downstreamFailed) {
+        return context.text('Internal Server Error', 500);
       }
 
       return context.text(result.body, result.status);

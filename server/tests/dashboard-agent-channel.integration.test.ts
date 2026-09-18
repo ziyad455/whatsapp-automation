@@ -206,8 +206,14 @@ describe('dashboard customer-service conversation channel', () => {
 
     const repository = createTenantConversationRepository(tenantA.tenant);
     for (let index = 0; index < 20; index++) {
-      await repository.appendMessage(conversation.id, 'CUSTOMER', `Question ${index}`);
-      await repository.appendMessage(conversation.id, 'ASSISTANT', `Answer ${index}`);
+      await repository.appendMessage(conversation.id, {
+        senderType: 'CUSTOMER',
+        content: `Question ${index}`,
+      });
+      await repository.appendMessage(conversation.id, {
+        senderType: 'AI',
+        content: `Answer ${index}`,
+      });
     }
 
     let observedInput: CustomerServiceAgentInput | undefined;
@@ -229,8 +235,14 @@ describe('dashboard customer-service conversation channel', () => {
     if (!conversation) throw new Error('Expected dashboard conversation.');
 
     const repository = createTenantConversationRepository(tenantA.tenant);
-    await repository.appendMessage(conversation.id, 'CUSTOMER', 'Are you open Saturday?');
-    await repository.appendMessage(conversation.id, 'ASSISTANT', 'We are closed on Saturday.');
+    await repository.appendMessage(conversation.id, {
+      senderType: 'CUSTOMER',
+      content: 'Are you open Saturday?',
+    });
+    await repository.appendMessage(conversation.id, {
+      senderType: 'AI',
+      content: 'We are closed on Saturday.',
+    });
 
     const response = await runCustomerServiceConversation({ tenant: tenantA.tenant, conversation, message: 'Can you confirm that?' }, {
       runCustomerService: input => runCustomerServiceAgent(input, {

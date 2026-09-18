@@ -9,6 +9,10 @@ import type {
   BusinessRule,
   BusinessSummary,
   BusinessUnderstanding,
+  ConversationDetail,
+  ConversationInboxItem,
+  ConversationMessage,
+  ConversationMode,
   FieldIssue,
   OpeningHour,
 } from './types'
@@ -75,6 +79,33 @@ async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Pro
 
 export const dashboardApi = {
   listBusinesses: () => apiRequest<{ businesses: BusinessSummary[] }>('/businesses'),
+  listConversations: (businessId: string) =>
+    apiRequest<{ conversations: ConversationInboxItem[] }>('/dashboard/conversations', {
+      businessId,
+    }),
+  getConversation: (businessId: string, conversationId: string) =>
+    apiRequest<{ conversation: ConversationDetail }>(
+      `/dashboard/conversations/${conversationId}`,
+      { businessId },
+    ),
+  setConversationMode: (
+    businessId: string,
+    conversationId: string,
+    mode: ConversationMode,
+  ) =>
+    apiRequest<{ conversation: ConversationDetail }>(
+      `/dashboard/conversations/${conversationId}/mode`,
+      { method: 'POST', businessId, body: { mode } },
+    ),
+  sendConversationReply: (
+    businessId: string,
+    conversationId: string,
+    content: string,
+  ) =>
+    apiRequest<{ message: ConversationMessage }>(
+      `/dashboard/conversations/${conversationId}/replies`,
+      { method: 'POST', businessId, body: { content } },
+    ),
   getAgentConversation: (businessId: string) =>
     apiRequest<{ conversation: AgentConversation | null }>('/dashboard/agent-chat', {
       businessId,

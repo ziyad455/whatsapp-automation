@@ -6,6 +6,7 @@ import { useBusiness } from '../business/business-context'
 import { LoadingBlock, StatusMessage } from '../components/StatusMessage'
 
 const navigation = [
+  { to: '/dashboard/conversations', label: 'Inbox' },
   { to: '/dashboard/profile', label: 'Business profile' },
   { to: '/dashboard/hours', label: 'Opening hours' },
   { to: '/dashboard/rules', label: 'Business rules' },

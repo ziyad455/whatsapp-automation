@@ -21,7 +21,7 @@ TenantContext is the trusted request-scoped authorization boundary. For authenti
       role: BusinessUserRole;
     }
 
-Mastra stores this object under the typed `tenant` key in its request-scoped `RequestContext`. The request ID remains a separate correlation value. The WhatsApp boundary constructs a machine-to-machine `WhatsAppTenantContext` containing only the trusted business and connection IDs after signature validation and `WhatsAppConnection` lookup. It does not reuse the dashboard membership resolver or accept a sender-selected tenant. Connecting that context to conversation and AI processing remains a later task.
+Mastra stores this object under the typed `tenant` key in its request-scoped `RequestContext`. The request ID remains a separate correlation value. The WhatsApp boundary constructs a machine-to-machine `WhatsAppTenantContext` containing only the trusted business and connection IDs after signature validation and `WhatsAppConnection` lookup. It does not reuse the dashboard membership resolver or accept a sender-selected tenant. That trusted context resolves the tenant-owned Customer and persistent Conversation before the shared runtime or manual transport path can execute.
 
 The invariant is that protected tenant services and repositories require a resolved context rather than accepting arbitrary business IDs throughout normal application code.
 
@@ -65,7 +65,7 @@ Tools are constructed or bound with the already-authorized TenantContext. Model-
 
 The shared agent is a stateless definition. Each invocation receives a new Mastra RequestContext whose required `tenant` value is validated against the canonical TenantContext shape. The agent is never mutated with a current business, tenant identifiers are not interpolated into its system prompt, and missing trusted context fails closed before an LLM request.
 
-BusinessContext is a public configuration projection built after TenantContext resolution; it cannot select the tenant. A server-created run capability supplies the tool's provider and checks all tenant identity fields on access. Client JSON cannot forge that capability. History is bounded and accepted only from an authorized application caller with matching business ownership; future thread persistence must add thread ownership checks. See [agent context](../ai/agent-context.md).
+BusinessContext is a public configuration projection built after TenantContext resolution; it cannot select the tenant. A server-created run capability supplies the tool's provider and checks all tenant identity fields on access. Client JSON cannot forge that capability. Canonical thread persistence uses direct business ownership and same-business composite relations; every history read includes the trusted business and conversation ID. Only a bounded recent subset is accepted by the agent. See [agent context](../ai/agent-context.md).
 
 ## Required tests
 

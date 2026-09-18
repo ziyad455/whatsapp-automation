@@ -27,9 +27,9 @@ Mutable business facts carry provenance only where the persisted record is an au
 ## Customer communication
 
 - **Customer** is a tenant-owned contact. The implemented WhatsApp identity stores the provider-normalized numeric sender ID unchanged as `whatsappPhone`; `(businessId, whatsappPhone)` is unique, while the same sender may have separate customer records in different businesses. A WhatsApp sender resolves to a customer only after the receiving business is known.
-- **Conversation** is tenant-owned and identifies a thread by channel plus channel-specific participant identity. The implemented dashboard foundation stores business, `DASHBOARD`/future `WHATSAPP` channel, participant key, and activity timestamps. Customer linkage, control mode, operational status, and assignment remain later extensions.
-- **ConversationMessage** belongs directly to a business and same-business conversation and currently records a monotonic conversation sequence, `CUSTOMER`/`ASSISTANT` content, and time. Conversation stores a bounded JSON list of validated pending read actions so follow-up acceptance survives refresh without treating assistant prose as executable state. External transport identity and delivery state remain for WhatsApp work.
-- **WhatsAppMessage** is the provider transport ledger, not a second conversation transcript. It binds business, connection, and customer through same-business foreign keys. Inbound rows claim globally unique Meta message IDs and expose explicit processing state; outbound rows retain the Meta message ID and normalized `PENDING`, `SENT`, `DELIVERED`, `READ`, or `FAILED` transport state plus safe milestone/failure metadata.
+- **Conversation** is tenant-owned and identifies a persistent thread by channel plus channel-specific participant identity. The current WhatsApp lifecycle uses exactly one durable conversation for `(businessId, WHATSAPP, customerId)`; closing and starting later historical threads is deferred. A WhatsApp conversation carries same-business Customer and WhatsAppConnection references, server-owned `AI`, `HUMAN`, or `PAUSED` mode, `OPEN`/reserved `CLOSED` status, optional same-business assignment, structured handoff reason, activity time, and a control version used by race-safe response commits. Dashboard simulation threads remain separate `DASHBOARD` conversations without customer or transport identity.
+- **ConversationMessage** is the canonical complete transcript used by operators, bounded AI context, and later analytics. It belongs directly to a business and same-business conversation and records a monotonic sequence, `INBOUND`/`OUTBOUND` direction, `CUSTOMER`, `AI`, `HUMAN`, or `SYSTEM` sender type, content, time, and optional same-business human sender. Conversation stores a bounded JSON list of validated pending read actions so follow-up acceptance survives refresh without treating assistant prose as executable state.
+- **WhatsAppMessage** is the provider transport ledger linked one-to-one where applicable to a canonical ConversationMessage; it is not a second transcript. It binds business, connection, and customer through same-business foreign keys. Inbound rows claim globally unique Meta message IDs and expose explicit processing state; outbound rows retain the Meta message ID and normalized `PENDING`, `SENT`, `DELIVERED`, `READ`, or `FAILED` transport state plus safe milestone/failure metadata. Provider status webhooks update this linked ledger record, so the inbox can present transport state without copying it into conversation history.
 
 Conversation messages preserve bounded interaction context used by the application. They are not an authoritative store for current business facts mentioned in old conversations.
 
@@ -50,7 +50,7 @@ Conversation messages preserve bounded interaction context used by the applicati
       -> AuditEvent
       -> WhatsAppConnection
       -> Conversation -> ConversationMessage
-      -> Customer -> future WhatsApp conversation linkage
+      -> Customer -> persistent WhatsApp Conversation
                   -> CustomerEvent
       -> Lead -> FollowUp
       -> Campaign

@@ -46,9 +46,13 @@ It then atomically claims the globally unique Meta message ID in the WhatsApp
 transport ledger. Only the first claim is eligible for downstream processing;
 duplicates receive `200` but cannot trigger another agent run or reply. The
 claim moves through `PROCESSING` while the customer message enters the
-tenant-bound `WHATSAPP` conversation and shared customer-service runtime. It is
-marked `PROCESSED` only after Meta accepts the reply; failures are marked
-`FAILED`.
+tenant-bound persistent `WHATSAPP` conversation. The canonical inbound message
+is linked to that claim before mode evaluation. OPEN/AI conversations invoke
+the shared customer-service runtime; HUMAN and PAUSED conversations store the
+message without an automatic reply. AI processing is marked `PROCESSED` after
+Meta accepts the reply, while non-automated modes are processed after durable
+storage. Failures are marked `FAILED` and visible HUMAN attention is applied
+when an AI/provider failure can no longer produce a safe reply.
 
 Development mappings are provisioned explicitly with the server's
 `whatsapp:connect` script and a selected business ID; webhook handling never
@@ -85,7 +89,7 @@ Unknown or cross-tenant IDs are acknowledged and logged without mutation. API
 acceptance means `SENT`, not delivered or read. A delayed lower status never
 regresses a higher state; it may only backfill its missing milestone timestamp.
 
-Application message state and Meta transport state are related but distinct. Outbound records should reflect pending/sent and later delivered/read/failed outcomes as supported.
+Application message state and Meta transport state are related but distinct. A canonical ConversationMessage holds customer-visible content and sender identity; its linked WhatsAppMessage holds pending/sent and later delivered/read/failed provider outcomes. A failed transport attempt therefore remains visible in the shared history without being presented as delivered.
 
 ## Reliability
 

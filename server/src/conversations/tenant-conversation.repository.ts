@@ -1,11 +1,105 @@
 import type {
   ConversationChannel,
-  ConversationMessageRole,
+  ConversationHandoffReason,
+  ConversationMessage,
+  ConversationMessageSenderType,
 } from '../generated/prisma/client';
 import { Prisma } from '../generated/prisma/client';
 import { prisma } from '../db/prisma';
 import type { TenantScope } from '../tenancy/tenant-context';
-import { pendingCustomerActionsSchema, type PendingCustomerAction } from '../ai/customer-capabilities';
+import {
+  pendingCustomerActionsSchema,
+  type PendingCustomerAction,
+} from '../ai/customer-capabilities';
+
+export interface ConversationParticipantIdentity {
+  readonly customerId?: string;
+  readonly whatsappConnectionId?: string;
+}
+
+export interface AppendConversationMessageInput {
+  readonly senderType: ConversationMessageSenderType;
+  readonly content: string;
+  readonly sentByBusinessUserId?: string;
+  readonly whatsappMessageId?: string;
+  readonly pendingActions?: readonly PendingCustomerAction[];
+}
+
+export interface CommitAutomatedReplyInput {
+  readonly conversationId: string;
+  readonly expectedControlVersion: number;
+  readonly content: string;
+  readonly pendingActions: readonly PendingCustomerAction[];
+  readonly handoffReason: ConversationHandoffReason | null;
+}
+
+export interface CommitHumanReplyInput {
+  readonly conversationId: string;
+  readonly expectedControlVersion: number;
+  readonly content: string;
+  readonly membershipId: string;
+}
+
+export interface CommittedOutboundConversationMessage {
+  readonly message: ConversationMessage;
+  readonly transportMessageId: string;
+  readonly controlVersion: number;
+}
+
+const directionFor = (senderType: ConversationMessageSenderType) =>
+  senderType === 'CUSTOMER' ? 'INBOUND' as const : 'OUTBOUND' as const;
+
+const pendingActionsValue = (
+  pendingActions: readonly PendingCustomerAction[],
+): Prisma.InputJsonValue =>
+  pendingCustomerActionsSchema.parse(pendingActions)
+    .map(action => ({ ...action })) as Prisma.InputJsonValue;
+
+const hasPendingOutboundMessage = (
+  transaction: Prisma.TransactionClient,
+  businessId: string,
+  conversationId: string,
+): Promise<number> => transaction.whatsAppMessage.count({
+  where: {
+    businessId,
+    direction: 'OUTBOUND',
+    deliveryStatus: 'PENDING',
+    conversationMessage: { conversationId },
+  },
+});
+
+const reserveWhatsAppTransport = async (
+  transaction: Prisma.TransactionClient,
+  conversation: {
+    readonly customerId: string | null;
+    readonly whatsappConnectionId: string | null;
+    readonly customer: { readonly whatsappPhone: string } | null;
+  },
+  businessId: string,
+  conversationMessageId: string,
+): Promise<string> => {
+  if (
+    !conversation.customerId ||
+    !conversation.whatsappConnectionId ||
+    !conversation.customer
+  ) {
+    throw new Error('The conversation has no WhatsApp transport identity.');
+  }
+
+  const transportMessage = await transaction.whatsAppMessage.create({
+    data: {
+      businessId,
+      whatsappConnectionId: conversation.whatsappConnectionId,
+      customerId: conversation.customerId,
+      conversationMessageId,
+      direction: 'OUTBOUND',
+      recipientPhone: conversation.customer.whatsappPhone,
+      deliveryStatus: 'PENDING',
+    },
+    select: { id: true },
+  });
+  return transportMessage.id;
+};
 
 export const createTenantConversationRepository = (tenant: TenantScope) => ({
   findById: (conversationId: string) =>
@@ -30,23 +124,31 @@ export const createTenantConversationRepository = (tenant: TenantScope) => ({
   getOrCreateByChannelParticipant: async (
     channel: ConversationChannel,
     participantKey: string,
+    identity: ConversationParticipantIdentity = {},
   ) => {
-    const identity = {
+    const selector = {
       businessId_channel_participantKey: {
         businessId: tenant.businessId,
         channel,
         participantKey,
       },
     };
+    const participantData = {
+      ...(identity.customerId ? { customerId: identity.customerId } : {}),
+      ...(identity.whatsappConnectionId
+        ? { whatsappConnectionId: identity.whatsappConnectionId }
+        : {}),
+    };
 
     try {
       return await prisma.conversation.upsert({
-        where: identity,
-        update: {},
+        where: selector,
+        update: participantData,
         create: {
           businessId: tenant.businessId,
           channel,
           participantKey,
+          ...participantData,
         },
       });
     } catch (error) {
@@ -54,7 +156,7 @@ export const createTenantConversationRepository = (tenant: TenantScope) => ({
         throw error;
       }
 
-      const conversation = await prisma.conversation.findUnique({ where: identity });
+      const conversation = await prisma.conversation.findUnique({ where: selector });
       if (!conversation) throw error;
       return conversation;
     }
@@ -62,14 +164,9 @@ export const createTenantConversationRepository = (tenant: TenantScope) => ({
 
   appendMessage: async (
     conversationId: string,
-    role: ConversationMessageRole,
-    content: string,
-    state?: { readonly pendingActions: readonly PendingCustomerAction[] },
+    input: AppendConversationMessageInput,
   ) => {
     const createdAt = new Date();
-    const pendingActions = state
-      ? pendingCustomerActionsSchema.parse(state.pendingActions).map(action => ({ ...action })) as Prisma.InputJsonValue
-      : undefined;
     return prisma.$transaction(async transaction => {
       const conversation = await transaction.conversation.update({
         where: {
@@ -79,24 +176,240 @@ export const createTenantConversationRepository = (tenant: TenantScope) => ({
           },
         },
         data: {
-          lastMessageAt: createdAt,
+          lastActivityAt: createdAt,
           messageCount: { increment: 1 },
-          ...(pendingActions ? { pendingActions } : {}),
+          ...(input.pendingActions === undefined
+            ? {}
+            : { pendingActions: pendingActionsValue(input.pendingActions) }),
         },
         select: { messageCount: true },
       });
-      return transaction.conversationMessage.create({
+      const message = await transaction.conversationMessage.create({
         data: {
           businessId: tenant.businessId,
           conversationId,
           sequence: conversation.messageCount,
-          role,
-          content,
+          direction: directionFor(input.senderType),
+          senderType: input.senderType,
+          content: input.content,
+          ...(input.sentByBusinessUserId
+            ? { sentByBusinessUserId: input.sentByBusinessUserId }
+            : {}),
           createdAt,
         },
       });
+
+      if (input.whatsappMessageId) {
+        const linked = await transaction.whatsAppMessage.updateMany({
+          where: {
+            id: input.whatsappMessageId,
+            businessId: tenant.businessId,
+            conversationMessageId: null,
+          },
+          data: { conversationMessageId: message.id },
+        });
+        if (linked.count !== 1) {
+          throw new Error('The WhatsApp transport message could not be linked.');
+        }
+      }
+
+      return message;
     });
   },
+
+  commitAutomatedReply: async (input: CommitAutomatedReplyInput) => {
+    const createdAt = new Date();
+    return prisma.$transaction(async transaction => {
+      if (await hasPendingOutboundMessage(
+        transaction,
+        tenant.businessId,
+        input.conversationId,
+      )) {
+        return null;
+      }
+
+      const claimed = await transaction.conversation.updateMany({
+        where: {
+          id: input.conversationId,
+          businessId: tenant.businessId,
+          mode: 'AI',
+          status: 'OPEN',
+          controlVersion: input.expectedControlVersion,
+        },
+        data: {
+          lastActivityAt: createdAt,
+          messageCount: { increment: 1 },
+          pendingActions: input.handoffReason
+            ? pendingActionsValue([])
+            : pendingActionsValue(input.pendingActions),
+          controlVersion: { increment: 1 },
+          ...(input.handoffReason
+            ? {
+                mode: 'HUMAN' as const,
+                handoffReason: input.handoffReason,
+                assignedBusinessUserId: null,
+              }
+            : {}),
+        },
+      });
+      if (claimed.count !== 1) return null;
+
+      const conversation = await transaction.conversation.findUniqueOrThrow({
+        where: {
+          businessId_id: {
+            businessId: tenant.businessId,
+            id: input.conversationId,
+          },
+        },
+        select: {
+          messageCount: true,
+          controlVersion: true,
+          customerId: true,
+          whatsappConnectionId: true,
+          customer: { select: { whatsappPhone: true } },
+        },
+      });
+
+      const message = await transaction.conversationMessage.create({
+        data: {
+          businessId: tenant.businessId,
+          conversationId: input.conversationId,
+          sequence: conversation.messageCount,
+          direction: 'OUTBOUND',
+          senderType: 'AI',
+          content: input.content,
+          createdAt,
+        },
+      });
+      if (input.handoffReason) {
+        await transaction.auditEvent.create({
+          data: {
+            businessId: tenant.businessId,
+            actorKind: 'SYSTEM',
+            targetType: 'CONVERSATION',
+            targetId: input.conversationId,
+            action: 'MODE_CHANGE',
+            before: { mode: 'AI' },
+            after: { mode: 'HUMAN', handoffReason: input.handoffReason },
+          },
+        });
+      }
+      const transportMessageId = await reserveWhatsAppTransport(
+        transaction,
+        conversation,
+        tenant.businessId,
+        message.id,
+      );
+      return {
+        message,
+        transportMessageId,
+        controlVersion: conversation.controlVersion,
+      } satisfies CommittedOutboundConversationMessage;
+    });
+  },
+
+  commitHumanReply: async (input: CommitHumanReplyInput) => {
+    const createdAt = new Date();
+    return prisma.$transaction(async transaction => {
+      if (await hasPendingOutboundMessage(
+        transaction,
+        tenant.businessId,
+        input.conversationId,
+      )) {
+        return null;
+      }
+
+      const claimed = await transaction.conversation.updateMany({
+        where: {
+          id: input.conversationId,
+          businessId: tenant.businessId,
+          mode: 'HUMAN',
+          status: 'OPEN',
+          controlVersion: input.expectedControlVersion,
+        },
+        data: {
+          assignedBusinessUserId: input.membershipId,
+          lastActivityAt: createdAt,
+          messageCount: { increment: 1 },
+          controlVersion: { increment: 1 },
+        },
+      });
+      if (claimed.count !== 1) return null;
+
+      const conversation = await transaction.conversation.findUniqueOrThrow({
+        where: {
+          businessId_id: {
+            businessId: tenant.businessId,
+            id: input.conversationId,
+          },
+        },
+        select: {
+          messageCount: true,
+          controlVersion: true,
+          customerId: true,
+          whatsappConnectionId: true,
+          customer: { select: { whatsappPhone: true } },
+        },
+      });
+      const message = await transaction.conversationMessage.create({
+        data: {
+          businessId: tenant.businessId,
+          conversationId: input.conversationId,
+          sequence: conversation.messageCount,
+          direction: 'OUTBOUND',
+          senderType: 'HUMAN',
+          sentByBusinessUserId: input.membershipId,
+          content: input.content,
+          createdAt,
+        },
+      });
+      const transportMessageId = await reserveWhatsAppTransport(
+        transaction,
+        conversation,
+        tenant.businessId,
+        message.id,
+      );
+      return {
+        message,
+        transportMessageId,
+        controlVersion: conversation.controlVersion,
+      } satisfies CommittedOutboundConversationMessage;
+    });
+  },
+
+  escalateFailedAiRun: (conversationId: string, expectedControlVersion: number) =>
+    prisma.$transaction(async transaction => {
+      const escalated = await transaction.conversation.updateMany({
+        where: {
+          id: conversationId,
+          businessId: tenant.businessId,
+          mode: 'AI',
+          status: 'OPEN',
+          controlVersion: expectedControlVersion,
+        },
+        data: {
+          mode: 'HUMAN',
+          handoffReason: 'LOW_CONFIDENCE',
+          assignedBusinessUserId: null,
+          pendingActions: pendingActionsValue([]),
+          controlVersion: { increment: 1 },
+        },
+      });
+      if (escalated.count === 1) {
+        await transaction.auditEvent.create({
+          data: {
+            businessId: tenant.businessId,
+            actorKind: 'SYSTEM',
+            targetType: 'CONVERSATION',
+            targetId: conversationId,
+            action: 'MODE_CHANGE',
+            before: { mode: 'AI' },
+            after: { mode: 'HUMAN', handoffReason: 'LOW_CONFIDENCE' },
+          },
+        });
+      }
+      return escalated;
+    }),
 
   listRecentMessages: async (
     conversationId: string,
