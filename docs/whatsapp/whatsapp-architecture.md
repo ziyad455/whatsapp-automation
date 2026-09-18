@@ -42,7 +42,13 @@ For a mapped number, the endpoint resolves or creates a Customer by the compound
 `(businessId, whatsappPhone)` identity. The numeric `messages[].from` value is
 preserved unchanged; it never selects a tenant and is not globally unique.
 Customer creation is atomic and database-constrained for concurrent deliveries.
-The current endpoint stops before conversation, agent, and reply processing.
+It then atomically claims the globally unique Meta message ID in the WhatsApp
+transport ledger. Only the first claim is eligible for downstream processing;
+duplicates receive `200` but cannot trigger another agent run or reply. The
+claim moves through `PROCESSING` while the customer message enters the
+tenant-bound `WHATSAPP` conversation and shared customer-service runtime. It is
+marked `PROCESSED` only after Meta accepts the reply; failures are marked
+`FAILED`.
 
 Development mappings are provisioned explicitly with the server's
 `whatsapp:connect` script and a selected business ID; webhook handling never
@@ -63,6 +69,21 @@ A dedicated send-message service resolves the active connection using both the t
 Development currently uses one server-side access token, while the sender `phoneNumberId` always comes from the resolved `WhatsAppConnection`. This keeps credentials out of domain and AI code and leaves a narrow transport boundary for later encrypted per-connection credentials.
 
 Provider failures are application-owned errors: invalid requests, authentication, rate limiting, provider unavailability, network failure, timeout, invalid response, configuration, and unavailable connection. Rate limits, provider 5xx responses, network failures, and timeouts are classified as retryable signals, but this service performs no automatic retry. Until an outbox/idempotency design exists, callers must reconcile ambiguous outcomes before retrying to avoid duplicate customer-visible messages.
+
+## Delivery status webhooks
+
+Signed `statuses[]` events are normalized into an application-owned event with
+external message ID, receiving phone-number ID, recipient, status, provider
+timestamp, and bounded safe failure fields. They never become `InboundMessage`
+objects and never enter customer or AI processing. Meta may deliver `sent`,
+`delivered`, `read`, and `failed` notifications repeatedly or out of arrival
+order, so status updates use explicit precedence and conditional writes.
+
+An event can mutate only the outbound row matching the trusted business and
+connection resolved from `phoneNumberId`, the external Meta ID, and recipient.
+Unknown or cross-tenant IDs are acknowledged and logged without mutation. API
+acceptance means `SENT`, not delivered or read. A delayed lower status never
+regresses a higher state; it may only backfill its missing milestone timestamp.
 
 Application message state and Meta transport state are related but distinct. Outbound records should reflect pending/sent and later delivered/read/failed outcomes as supported.
 

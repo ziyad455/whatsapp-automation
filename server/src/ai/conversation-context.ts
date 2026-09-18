@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { TenantContext } from '../tenancy/tenant-context';
+import type { TenantScope } from '../tenancy/tenant-context';
 
 export const HISTORY_MESSAGE_LIMIT = 12;
 export const HISTORY_CHARACTER_LIMIT = 12000;
@@ -18,7 +18,7 @@ export interface ConversationHistory {
 
 // Server-supplied, already-authorized history only. No system/tool messages or stored memory.
 export const buildConversationMessages = (
-  tenant: TenantContext,
+  tenant: TenantScope,
   message: string,
   history?: ConversationHistory,
 ): ConversationMessage[] => {

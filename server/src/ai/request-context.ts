@@ -1,7 +1,6 @@
 import type { RequestContext } from '@mastra/core/request-context';
 import { z } from 'zod';
-import { BusinessUserRole } from '../generated/prisma/enums';
-import { TENANT_CONTEXT_KEY, type TenantContext } from '../tenancy/tenant-context';
+import { TENANT_CONTEXT_KEY, type TenantScope } from '../tenancy/tenant-context';
 import type { BusinessDataProvider } from '../business-data/business-data-provider';
 import type { BusinessContext } from './business-context';
 import {
@@ -29,8 +28,8 @@ import {
 } from './agent-diagnostics';
 
 export const customerServiceTenantContextSchema = z.object({
-  userId: z.uuid(), businessId: z.uuid(), membershipId: z.uuid(), role: z.enum(BusinessUserRole),
-}).strict().readonly() satisfies z.ZodType<TenantContext>;
+  businessId: z.uuid(),
+}).strict().readonly() satisfies z.ZodType<TenantScope>;
 export const customerServiceRequestContextSchema = z.object({
   [TENANT_CONTEXT_KEY]: customerServiceTenantContextSchema,
 });
@@ -73,13 +72,13 @@ export class CustomerServiceRun {
   #capabilities: readonly CustomerServiceCapability[];
   #knownEntityTypes = new Map<string, ReadonlyMap<string, string>>();
   #offeredActions: PendingCustomerAction[] = [];
-  #tenant: TenantContext;
+  #tenant: TenantScope;
   #business: BusinessContext;
   #closed = false;
   #calls = 0;
 
   constructor(
-    tenant: TenantContext,
+    tenant: TenantScope,
     business: BusinessContext,
     provider: BusinessDataProvider,
     capabilities: readonly CustomerServiceCapability[],
@@ -90,9 +89,8 @@ export class CustomerServiceRun {
     this.#capabilities = capabilities;
   }
 
-  authorize(tenant: TenantContext): void {
-    if (this.#closed || Object.entries(this.#tenant).some(([key, value]) =>
-      tenant[key as keyof TenantContext] !== value)) {
+  authorize(tenant: TenantScope): void {
+    if (this.#closed || tenant.businessId !== this.#tenant.businessId) {
       throw new Error('Authorized AI runtime context is required.');
     }
   }

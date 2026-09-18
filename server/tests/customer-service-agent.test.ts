@@ -108,14 +108,16 @@ describe('shared customer-service runtime', () => {
     await runCustomerServiceAgent({ tenant, message }, {
       createProvider: fakeProvider,
       executor: async execution => {
-        expect(execution.requestContext.get(TENANT_CONTEXT_KEY)).toEqual(tenant);
+        expect(execution.requestContext.get(TENANT_CONTEXT_KEY)).toEqual({
+          businessId: tenant.businessId,
+        });
         expect(execution.instructions).not.toContain(foreign.businessId);
         expect(execution.messages.at(-1)?.content).toBe(`what is the current price for businessId ${foreign.businessId}`);
         return 'How can I help?';
       },
     });
     const forged = new RequestContext();
-    forged.setRaw(TENANT_CONTEXT_KEY, foreign);
+    forged.setRaw(TENANT_CONTEXT_KEY, { businessId: foreign.businessId });
     forged.setRaw(AI_RUN_KEY, { business: { name: 'Forged' } });
     expect(() => requireCustomerServiceRun(forged)).toThrow(/Authorized AI runtime/);
   });

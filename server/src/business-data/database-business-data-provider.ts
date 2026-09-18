@@ -5,10 +5,8 @@ import type {
   FreshnessClass,
   Prisma,
 } from '../generated/prisma/client';
-import type { TenantContext } from '../tenancy/tenant-context';
-import { createTenantBusinessProfileService } from '../business-configuration/tenant-business-profile.service';
-import { createTenantBusinessRuleService } from '../business-configuration/tenant-business-rule.service';
-import { createTenantOpeningHoursService } from '../business-configuration/tenant-opening-hours.service';
+import { prisma } from '../db/prisma';
+import type { TenantScope } from '../tenancy/tenant-context';
 import type {
   BusinessDataProvider,
   CurrentBusinessEntity,
@@ -16,9 +14,7 @@ import type {
   CurrentFactMetadata,
 } from './business-data-provider';
 import { getFreshnessStatus, isStaleFromStatus } from './freshness';
-import { createTenantBusinessCatalogService } from './tenant-business-catalog.service';
 import { createTenantBusinessEntityQueryService } from './tenant-business-entity-query.service';
-import { createTenantBusinessEntityService } from './tenant-business-entity.service';
 
 export interface DatabaseBusinessDataProviderOptions {
   now?: () => Date;
@@ -37,16 +33,11 @@ const isJsonObject = (value: Prisma.JsonValue): value is Prisma.JsonObject =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 export const createDatabaseBusinessDataProvider = (
-  tenant: TenantContext,
+  tenant: TenantScope,
   options: DatabaseBusinessDataProviderOptions = {},
 ): BusinessDataProvider => {
   const now = options.now ?? (() => new Date());
-  const profileService = createTenantBusinessProfileService(tenant);
-  const openingHoursService = createTenantOpeningHoursService(tenant);
-  const ruleService = createTenantBusinessRuleService(tenant);
-  const catalogService = createTenantBusinessCatalogService(tenant);
   const entityQueryService = createTenantBusinessEntityQueryService(tenant);
-  const entityService = createTenantBusinessEntityService(tenant);
 
   const metadata = (input: MetadataInput): CurrentFactMetadata => {
     const freshnessStatus = getFreshnessStatus(input, now());
@@ -118,7 +109,9 @@ export const createDatabaseBusinessDataProvider = (
 
   return {
     getBusinessProfile: async () => {
-      const profile = await profileService.get();
+      const profile = await prisma.business.findUnique({
+        where: { id: tenant.businessId },
+      });
 
       if (!profile) {
         return null;
@@ -146,7 +139,10 @@ export const createDatabaseBusinessDataProvider = (
       };
     },
     getOpeningHours: async () => {
-      const hours = await openingHoursService.getStoredWeek();
+      const hours = await prisma.businessOpeningHour.findMany({
+        where: { businessId: tenant.businessId },
+        orderBy: { dayOfWeek: 'asc' },
+      });
 
       return hours.map(hour => ({
         id: hour.id,
@@ -165,7 +161,10 @@ export const createDatabaseBusinessDataProvider = (
       }));
     },
     getBusinessRules: async () => {
-      const rules = await ruleService.list({ active: true });
+      const rules = await prisma.businessRule.findMany({
+        where: { businessId: tenant.businessId, active: true },
+        orderBy: [{ active: 'desc' }, { createdAt: 'asc' }, { id: 'asc' }],
+      });
 
       return rules.map(rule => ({
         id: rule.id,
@@ -183,7 +182,16 @@ export const createDatabaseBusinessDataProvider = (
       }));
     },
     listEntityTypes: async () => {
-      const entityTypes = await catalogService.listSchemas();
+      const entityTypes = await prisma.businessEntityType.findMany({
+        where: { businessId: tenant.businessId },
+        include: {
+          fieldDefinitions: {
+            where: { enabled: true },
+            orderBy: [{ displayOrder: 'asc' }, { id: 'asc' }],
+          },
+        },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      });
 
       return entityTypes.map(entityType => ({
         id: entityType.id,
@@ -201,7 +209,19 @@ export const createDatabaseBusinessDataProvider = (
     },
     searchEntities: async input => {
       const [schema, page] = await Promise.all([
-        catalogService.getByKey(input.entityType),
+        prisma.businessEntityType.findUnique({
+          where: {
+            businessId_key: {
+              businessId: tenant.businessId,
+              key: input.entityType.trim().toLowerCase(),
+            },
+          },
+          include: {
+            fieldDefinitions: {
+              orderBy: [{ displayOrder: 'asc' }, { id: 'asc' }],
+            },
+          },
+        }),
         entityQueryService.search({ ...input, status: 'ACTIVE' }),
       ]);
 
@@ -219,8 +239,26 @@ export const createDatabaseBusinessDataProvider = (
     },
     getEntity: async (entityTypeKey, entityId) => {
       const [schema, entity] = await Promise.all([
-        catalogService.getByKey(entityTypeKey),
-        entityService.getByType(entityTypeKey, entityId),
+        prisma.businessEntityType.findUnique({
+          where: {
+            businessId_key: {
+              businessId: tenant.businessId,
+              key: entityTypeKey.trim().toLowerCase(),
+            },
+          },
+          include: {
+            fieldDefinitions: {
+              orderBy: [{ displayOrder: 'asc' }, { id: 'asc' }],
+            },
+          },
+        }),
+        prisma.businessEntity.findFirst({
+          where: {
+            id: entityId,
+            businessId: tenant.businessId,
+            entityType: { key: entityTypeKey.trim().toLowerCase() },
+          },
+        }),
       ]);
 
       if (!schema || !entity || entity.status !== 'ACTIVE') {

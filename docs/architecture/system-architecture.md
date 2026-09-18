@@ -24,7 +24,7 @@
 
 The browser never accesses PostgreSQL or Meta credentials directly. The shared agent never bypasses application services to obtain tenant data.
 
-Dashboard chat and WhatsApp are independent channel adapters. Dashboard chat resolves tenancy from the authenticated user and membership selection, then identifies its conversation by authenticated user. Future WhatsApp handling resolves tenancy from a verified receiving `phoneNumberId`, then identifies the customer conversation. Both converge on the same channel-neutral customer-service conversation runtime only after trusted TenantContext and authorized conversation identity exist.
+Dashboard chat and WhatsApp are independent channel adapters. Dashboard chat resolves tenancy from the authenticated user and membership selection, then identifies its conversation by authenticated user. WhatsApp resolves tenancy from a verified receiving `phoneNumberId`, then identifies its conversation by the resolved tenant-owned Customer. Both converge on the same channel-neutral customer-service conversation runtime only after a trusted business scope and authorized conversation identity exist.
 
 ## Dashboard boundary
 

@@ -3,7 +3,7 @@ import type {
   Conversation,
   ConversationChannel,
 } from '../generated/prisma/client';
-import type { TenantContext } from '../tenancy/tenant-context';
+import type { TenantScope } from '../tenancy/tenant-context';
 import {
   createTenantConversationRepository,
   type TenantConversationRepository,
@@ -29,7 +29,7 @@ export interface ResolveChannelConversationInput {
 }
 
 export const resolveChannelConversation = async (
-  tenant: TenantContext,
+  tenant: TenantScope,
   input: ResolveChannelConversationInput,
   repository: TenantConversationRepository = createTenantConversationRepository(tenant),
 ): Promise<Conversation | null> => {

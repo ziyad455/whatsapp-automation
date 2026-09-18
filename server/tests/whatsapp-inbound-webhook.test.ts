@@ -1,6 +1,9 @@
 import { createHmac, randomUUID } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
-import { normalizeWhatsAppWebhook } from '../src/whatsapp/normalize-inbound-message';
+import {
+  normalizeWhatsAppStatusEvents,
+  normalizeWhatsAppWebhook,
+} from '../src/whatsapp/normalize-inbound-message';
 import { processInboundWhatsAppWebhook } from '../src/whatsapp/process-inbound-webhook';
 import { whatsappWebhookRoutes } from '../src/http/whatsapp-webhook-routes';
 
@@ -34,6 +37,33 @@ const textChange = (
 const payloadWith = (...changes: unknown[]) => ({
   object: 'whatsapp_business_account',
   entry: [{ id: '100000000000001', changes }],
+});
+
+const statusChange = (
+  phoneNumberId: string,
+  externalMessageId: string,
+  status: 'sent' | 'delivered' | 'read' | 'failed',
+) => ({
+  field: 'messages',
+  value: {
+    messaging_product: 'whatsapp',
+    metadata: { phone_number_id: phoneNumberId },
+    statuses: [{
+      id: externalMessageId,
+      recipient_id: '212600000001',
+      status,
+      timestamp: '1789632000',
+      ...(status === 'failed'
+        ? {
+            errors: [{
+              code: 131_000,
+              title: 'Safe provider failure',
+              error_data: { details: 'Safe failure details' },
+            }],
+          }
+        : {}),
+    }],
+  },
 });
 
 const signedRequest = (body: string, signatureBody = body): Request => {
@@ -79,11 +109,16 @@ describe('WhatsApp inbound webhook boundary', () => {
       whatsappPhone: '212600000001',
     };
     const resolveCustomer = vi.fn().mockResolvedValue(customer);
+    const claimMessage = vi.fn().mockResolvedValue({
+      outcome: 'CLAIMED',
+      messageId: randomUUID(),
+    });
 
     const result = await processInboundWhatsAppWebhook(signedRequest(body), {
       appSecret,
       resolveTenant,
       resolveCustomer,
+      claimMessage,
     });
 
     expect(result).toMatchObject({
@@ -97,12 +132,21 @@ describe('WhatsApp inbound webhook boundary', () => {
         },
         tenant,
         customer,
+        inboxMessageId: expect.any(String),
       }],
+      duplicates: [],
+      unresolvedMessages: [],
+      statusEvents: [],
     });
     expect(resolveTenant).toHaveBeenCalledWith('111111111111111');
     expect(resolveCustomer).toHaveBeenCalledExactlyOnceWith(
       tenant,
       '212600000001',
+    );
+    expect(claimMessage).toHaveBeenCalledExactlyOnceWith(
+      tenant,
+      customer.id,
+      expect.objectContaining({ externalMessageId: 'wamid.test-1' }),
     );
   });
 
@@ -122,7 +166,9 @@ describe('WhatsApp inbound webhook boundary', () => {
     expect(result).toMatchObject({
       accepted: true,
       status: 200,
-      messages: [{ tenant: null, customer: null }],
+      messages: [],
+      duplicates: [],
+      unresolvedMessages: [{ externalMessageId: 'wamid.unmapped' }],
     });
     expect(resolveTenant).toHaveBeenCalledExactlyOnceWith('444444444444444');
     expect(resolveCustomer).not.toHaveBeenCalled();
@@ -204,7 +250,12 @@ describe('WhatsApp inbound webhook boundary', () => {
       value: {
         messaging_product: 'whatsapp',
         metadata: { phone_number_id: '111111111111111' },
-        statuses: [{ id: 'wamid.outbound', status: 'delivered' }],
+        statuses: [{
+          id: 'wamid.outbound',
+          status: 'delivered',
+          timestamp: '1789632000',
+          recipient_id: '212600000001',
+        }],
       },
     })],
     ['missing messages array', payloadWith({
@@ -230,6 +281,106 @@ describe('WhatsApp inbound webhook boundary', () => {
     })],
   ])('safely ignores %s', (_case, payload) => {
     expect(normalizeWhatsAppWebhook(payload)).toEqual([]);
+  });
+
+  it('normalizes status events without turning them into customer messages', () => {
+    const payload = payloadWith(statusChange(
+      '111111111111111',
+      'wamid.outbound-status',
+      'failed',
+    ));
+
+    expect(normalizeWhatsAppWebhook(payload)).toEqual([]);
+    expect(normalizeWhatsAppStatusEvents(payload)).toEqual([{
+      provider: 'WHATSAPP',
+      externalMessageId: 'wamid.outbound-status',
+      phoneNumberId: '111111111111111',
+      recipientPhone: '212600000001',
+      status: 'FAILED',
+      timestamp: new Date('2026-09-17T08:00:00.000Z'),
+      failureCode: '131000',
+      failureTitle: 'Safe provider failure',
+      failureDetails: 'Safe failure details',
+    }]);
+  });
+
+  it('routes status-only webhooks away from customer and inbound claim processing', async () => {
+    const body = JSON.stringify(payloadWith(statusChange(
+      '111111111111111',
+      'wamid.status-only',
+      'delivered',
+    )));
+    const tenant = {
+      businessId: randomUUID(),
+      whatsappConnectionId: randomUUID(),
+    };
+    const resolveCustomer = vi.fn();
+    const claimMessage = vi.fn();
+    const applyStatusEvent = vi.fn().mockResolvedValue({
+      outcome: 'APPLIED',
+      status: 'DELIVERED',
+    });
+
+    const result = await processInboundWhatsAppWebhook(signedRequest(body), {
+      appSecret,
+      resolveTenant: vi.fn().mockResolvedValue(tenant),
+      resolveCustomer,
+      claimMessage,
+      applyStatusEvent,
+    });
+
+    expect(result).toMatchObject({
+      accepted: true,
+      messages: [],
+      duplicates: [],
+      statusEvents: [{
+        tenant,
+        outcome: { outcome: 'APPLIED', status: 'DELIVERED' },
+      }],
+    });
+    expect(resolveCustomer).not.toHaveBeenCalled();
+    expect(claimMessage).not.toHaveBeenCalled();
+    expect(applyStatusEvent).toHaveBeenCalledExactlyOnceWith(
+      tenant,
+      expect.objectContaining({ externalMessageId: 'wamid.status-only' }),
+    );
+  });
+
+  it('returns duplicates outside the downstream-eligible message list', async () => {
+    const body = JSON.stringify(payloadWith(
+      textChange('111111111111111', '212600000001', 'wamid.duplicate'),
+    ));
+    const tenant = {
+      businessId: randomUUID(),
+      whatsappConnectionId: randomUUID(),
+    };
+    const customer = {
+      id: randomUUID(),
+      businessId: tenant.businessId,
+      whatsappPhone: '212600000001',
+    };
+    const claimMessage = vi.fn()
+      .mockResolvedValueOnce({ outcome: 'CLAIMED', messageId: randomUUID() })
+      .mockResolvedValueOnce({ outcome: 'DUPLICATE' });
+    const dependencies = {
+      appSecret,
+      resolveTenant: vi.fn().mockResolvedValue(tenant),
+      resolveCustomer: vi.fn().mockResolvedValue(customer),
+      claimMessage,
+    };
+
+    const first = await processInboundWhatsAppWebhook(signedRequest(body), dependencies);
+    const duplicate = await processInboundWhatsAppWebhook(signedRequest(body), dependencies);
+    const downstream = vi.fn();
+    if (first.accepted) first.messages.forEach(downstream);
+    if (duplicate.accepted) duplicate.messages.forEach(downstream);
+
+    expect(first).toMatchObject({ messages: [{ message: { externalMessageId: 'wamid.duplicate' } }] });
+    expect(duplicate).toMatchObject({
+      messages: [],
+      duplicates: [{ message: { externalMessageId: 'wamid.duplicate' } }],
+    });
+    expect(downstream).toHaveBeenCalledOnce();
   });
 
   it('normalizes multiple messages across nested events', () => {

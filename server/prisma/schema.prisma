@@ -125,6 +125,32 @@ enum WhatsAppConnectionStatus {
   @@map("whatsapp_connection_status")
 }
 
+enum WhatsAppMessageDirection {
+  INBOUND
+  OUTBOUND
+
+  @@map("whatsapp_message_direction")
+}
+
+enum WhatsAppInboundProcessingStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+
+  @@map("whatsapp_inbound_processing_status")
+}
+
+enum WhatsAppDeliveryStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+
+  @@map("whatsapp_delivery_status")
+}
+
 model Business {
   id                       String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                     String                  @db.Text
@@ -154,6 +180,7 @@ model Business {
   conversationMessages     ConversationMessage[]
   whatsappConnections      WhatsAppConnection[]
   customers                Customer[]
+  whatsappMessages         WhatsAppMessage[]
 
   @@map("businesses")
 }
@@ -168,21 +195,57 @@ model WhatsAppConnection {
   createdAt                 DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                 DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   business                  Business                 @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  messages                  WhatsAppMessage[]
 
+  @@unique([businessId, id], map: "whatsapp_connections_business_id_id_unique")
   @@index([businessId, status], map: "whatsapp_connections_business_id_status_index")
   @@map("whatsapp_connections")
 }
 
 model Customer {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  businessId    String   @map("business_id") @db.Uuid
-  whatsappPhone String   @map("whatsapp_phone") @db.VarChar(100)
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  business      Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId    String            @map("business_id") @db.Uuid
+  whatsappPhone String            @map("whatsapp_phone") @db.VarChar(100)
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  business      Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  messages      WhatsAppMessage[]
 
+  @@unique([businessId, id], map: "customers_business_id_id_unique")
   @@unique([businessId, whatsappPhone], map: "customers_business_id_whatsapp_phone_unique")
   @@map("customers")
+}
+
+model WhatsAppMessage {
+  id                   String                           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId           String                           @map("business_id") @db.Uuid
+  whatsappConnectionId String                           @map("whatsapp_connection_id") @db.Uuid
+  customerId           String                           @map("customer_id") @db.Uuid
+  direction            WhatsAppMessageDirection
+  externalMessageId    String?                          @unique(map: "whatsapp_messages_external_message_id_unique") @map("external_message_id") @db.Text
+  recipientPhone       String?                          @map("recipient_phone") @db.VarChar(100)
+  processingStatus     WhatsAppInboundProcessingStatus? @map("processing_status")
+  deliveryStatus       WhatsAppDeliveryStatus?          @map("delivery_status")
+  providerTimestamp    DateTime?                        @map("provider_timestamp") @db.Timestamptz(6)
+  processingStartedAt  DateTime?                        @map("processing_started_at") @db.Timestamptz(6)
+  processedAt          DateTime?                        @map("processed_at") @db.Timestamptz(6)
+  processingFailedAt   DateTime?                        @map("processing_failed_at") @db.Timestamptz(6)
+  sentAt               DateTime?                        @map("sent_at") @db.Timestamptz(6)
+  deliveredAt          DateTime?                        @map("delivered_at") @db.Timestamptz(6)
+  readAt               DateTime?                        @map("read_at") @db.Timestamptz(6)
+  failedAt             DateTime?                        @map("failed_at") @db.Timestamptz(6)
+  failureCode          String?                          @map("failure_code") @db.VarChar(100)
+  failureTitle         String?                          @map("failure_title") @db.Text
+  failureDetails       String?                          @map("failure_details") @db.Text
+  createdAt            DateTime                         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime                         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  business             Business                         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  whatsappConnection   WhatsAppConnection               @relation(fields: [businessId, whatsappConnectionId], references: [businessId, id], onDelete: Cascade)
+  customer             Customer                         @relation(fields: [businessId, customerId], references: [businessId, id], onDelete: Cascade)
+
+  @@index([businessId, direction, createdAt], map: "whatsapp_messages_business_direction_created_index")
+  @@index([businessId, deliveryStatus], map: "whatsapp_messages_business_delivery_status_index")
+  @@map("whatsapp_messages")
 }
 
 model Conversation {

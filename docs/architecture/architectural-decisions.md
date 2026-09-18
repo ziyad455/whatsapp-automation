@@ -26,7 +26,7 @@ Tenant-scoped dashboard requests send `x-business-id` as an untrusted selector. 
 
 ## Permanent channel adapters around one AI runtime
 
-Dashboard chat and WhatsApp are independent, permanent entry channels. Each adapter authenticates its own transport and resolves a trusted `TenantContext` plus a channel-specific conversation identity before invoking `runCustomerServiceConversation`. The shared boundary owns persisted bounded history, agent invocation, tools, provider, freshness rules, safety behavior, and `AgentResult`; it does not resolve tenants or depend on the originating channel. Dashboard chat identifies its conversation with the verified Better Auth user inside the selected authorized business. Future WhatsApp handling will use the verified receiving `phoneNumberId` to resolve the business and a customer identity to resolve the conversation.
+Dashboard chat and WhatsApp are independent, permanent entry channels. Each adapter authenticates its own transport and resolves a trusted business scope plus a channel-specific conversation identity before invoking `runCustomerServiceConversation`. The shared boundary owns persisted bounded history, agent invocation, tools, provider, freshness rules, safety behavior, and `AgentResult`; it does not resolve tenants or depend on the originating channel. Dashboard chat identifies its conversation with the verified Better Auth user inside the selected authorized business. WhatsApp uses the verified receiving `phoneNumberId` to resolve the business and the tenant-owned Customer to resolve the conversation.
 
 ## Mastra custom routes without Express
 

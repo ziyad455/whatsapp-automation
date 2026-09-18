@@ -175,17 +175,44 @@ describe('WhatsApp send-message application service', () => {
       return connection?.businessId === tenant.businessId ? connection : null;
     });
     const logger = { info: vi.fn(), warn: vi.fn() };
+    const customer = {
+      id: randomUUID(),
+      businessId: businessA,
+      whatsappPhone: '212600000001',
+    };
+    const resolveCustomer = vi.fn(async (tenant: { businessId: string }, phone: string) => ({
+      ...customer,
+      id: randomUUID(),
+      businessId: tenant.businessId,
+      whatsappPhone: phone,
+    }));
+    const createPendingMessage = vi.fn().mockResolvedValue({ id: randomUUID() });
+    const markMessageSent = vi.fn().mockResolvedValue(undefined);
 
     await sendWhatsAppText({
       tenant: { businessId: businessA, whatsappConnectionId: connectionA },
       to: '212600000001',
       text: 'Business A reply',
-    }, { findConnection, transport, logger });
+    }, {
+      findConnection,
+      transport,
+      logger,
+      resolveCustomer,
+      createPendingMessage,
+      markMessageSent,
+    });
     await sendWhatsAppText({
       tenant: { businessId: businessB, whatsappConnectionId: connectionB },
       to: '212600000002',
       text: 'Business B reply',
-    }, { findConnection, transport, logger });
+    }, {
+      findConnection,
+      transport,
+      logger,
+      resolveCustomer,
+      createPendingMessage,
+      markMessageSent,
+    });
 
     expect(sendText).toHaveBeenNthCalledWith(1, {
       phoneNumberId: '111111111111111',
@@ -197,6 +224,8 @@ describe('WhatsApp send-message application service', () => {
       to: '212600000002',
       text: 'Business B reply',
     });
+    expect(createPendingMessage).toHaveBeenCalledTimes(2);
+    expect(markMessageSent).toHaveBeenCalledTimes(2);
   });
 
   it('fails closed when the trusted connection does not belong to the tenant', async () => {
@@ -215,5 +244,52 @@ describe('WhatsApp send-message application service', () => {
       retryable: false,
     });
     expect(transport.sendText).not.toHaveBeenCalled();
+  });
+
+  it('persists a safe failed state when the provider rejects a pending send', async () => {
+    const tenant = {
+      businessId: randomUUID(),
+      whatsappConnectionId: randomUUID(),
+    };
+    const pendingMessageId = randomUUID();
+    const markMessageFailed = vi.fn().mockResolvedValue(undefined);
+    const providerError = new WhatsAppSendError({
+      code: 'RATE_LIMITED',
+      message: 'Meta rate-limited the WhatsApp send request.',
+      retryable: true,
+      providerStatus: 429,
+    });
+
+    await expect(sendWhatsAppText({
+      tenant,
+      to: '212600000001',
+      text: 'Test',
+    }, {
+      findConnection: vi.fn().mockResolvedValue({
+        id: tenant.whatsappConnectionId,
+        businessId: tenant.businessId,
+        phoneNumberId: '111111111111111',
+      }),
+      resolveCustomer: vi.fn().mockResolvedValue({
+        id: randomUUID(),
+        businessId: tenant.businessId,
+        whatsappPhone: '212600000001',
+      }),
+      createPendingMessage: vi.fn().mockResolvedValue({ id: pendingMessageId }),
+      markMessageSent: vi.fn(),
+      markMessageFailed,
+      transport: { sendText: vi.fn().mockRejectedValue(providerError) },
+      logger: { info: vi.fn(), warn: vi.fn() },
+    })).rejects.toBe(providerError);
+
+    expect(markMessageFailed).toHaveBeenCalledExactlyOnceWith(
+      tenant,
+      pendingMessageId,
+      {
+        code: 'RATE_LIMITED',
+        title: 'Meta rate-limited the WhatsApp send request.',
+        details: 'Meta HTTP status 429',
+      },
+    );
   });
 });

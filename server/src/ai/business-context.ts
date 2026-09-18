@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import type { BusinessDataProvider, CurrentFactMetadata } from '../business-data/business-data-provider';
 import { createDatabaseBusinessDataProvider } from '../business-data/database-business-data-provider';
-import type { TenantContext } from '../tenancy/tenant-context';
+import type { TenantScope } from '../tenancy/tenant-context';
 
-export type BusinessDataProviderFactory = (tenant: TenantContext) => BusinessDataProvider;
+export type BusinessDataProviderFactory = (tenant: TenantScope) => BusinessDataProvider;
 
 export const factMetadataSchema = z.object({
   source: z.enum(['MANUAL', 'IMPORT', 'API', 'SYNC', 'SYSTEM']),
@@ -32,7 +32,7 @@ export type BusinessContext = z.infer<typeof businessContextSchema>;
 
 // Instructions contain only identity/routing configuration. Current business facts use tools.
 export const buildBusinessContext = async (
-  tenant: TenantContext,
+  tenant: TenantScope,
   createProvider: BusinessDataProviderFactory = createDatabaseBusinessDataProvider,
 ): Promise<BusinessContext> => {
   const provider = createProvider(tenant);

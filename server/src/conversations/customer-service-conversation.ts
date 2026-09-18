@@ -9,7 +9,7 @@ import {
   conversationMessageSchema,
   HISTORY_MESSAGE_LIMIT,
 } from '../ai/conversation-context';
-import type { TenantContext } from '../tenancy/tenant-context';
+import type { TenantScope } from '../tenancy/tenant-context';
 import {
   createTenantConversationRepository,
   type TenantConversationRepository,
@@ -23,7 +23,7 @@ export type CustomerServiceRuntime = (
 export interface CustomerServiceConversationDependencies {
   readonly runCustomerService?: CustomerServiceRuntime;
   readonly createRepository?: (
-    tenant: TenantContext,
+    tenant: TenantScope,
   ) => TenantConversationRepository;
 }
 
@@ -34,7 +34,7 @@ export interface CustomerServiceConversationResult {
 
 export const runCustomerServiceConversation = async (
   input: {
-    readonly tenant: TenantContext;
+    readonly tenant: TenantScope;
     readonly conversation: ConversationReference;
     readonly message: string;
   },
