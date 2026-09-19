@@ -73,6 +73,21 @@ const agentResult = agentResultSchema.parse({
   detectedLanguage: 'en',
 });
 
+const ignoredLeadCapture = () => ({
+  captureLead: vi.fn().mockResolvedValue({
+    qualification: {
+      qualifies: false,
+      intent: 'INFORMATION',
+      reasonCode: 'INFORMATION_ONLY',
+      evidenceTypes: [],
+    },
+    leadId: null,
+    created: false,
+    evidenceAdded: false,
+    summaryRequired: false,
+  }),
+});
+
 const repositoryFor = (conversation: Conversation) => {
   const customerMessage = messageFor(conversation, 'CUSTOMER');
   const aiMessage = messageFor(conversation, 'AI');
@@ -107,8 +122,10 @@ describe('WhatsApp shared customer-service channel', () => {
     const startProcessing = vi.fn().mockResolvedValue({ count: 1 });
     const markProcessed = vi.fn().mockResolvedValue({ count: 1 });
     const markFailed = vi.fn();
+    const leadHooks = ignoredLeadCapture();
 
     await expect(handleWhatsAppAgentMessage(input, {
+      ...leadHooks,
       resolveConversation,
       generateReply,
       createRepository: () => repository as unknown as TenantConversationRepository,
@@ -155,6 +172,13 @@ describe('WhatsApp shared customer-service channel', () => {
     });
     expect(markProcessed).toHaveBeenCalledWith(input.tenant, input.inboxMessageId);
     expect(markFailed).not.toHaveBeenCalled();
+    expect(leadHooks.captureLead).toHaveBeenCalledWith(
+      { businessId: input.tenant.businessId },
+      expect.objectContaining({
+        conversationId: conversation.id,
+        detectedIntent: 'GENERAL_QUESTION',
+      }),
+    );
   });
 
   it.each(['HUMAN', 'PAUSED'] as const)(
@@ -167,6 +191,7 @@ describe('WhatsApp shared customer-service channel', () => {
       const sendText = vi.fn();
 
       await expect(handleWhatsAppAgentMessage(input, {
+        ...ignoredLeadCapture(),
         resolveConversation: vi.fn().mockResolvedValue(conversation),
         createRepository: () => repository as unknown as TenantConversationRepository,
         generateReply,
@@ -195,6 +220,7 @@ describe('WhatsApp shared customer-service channel', () => {
     const sendText = vi.fn();
 
     await expect(handleWhatsAppAgentMessage(input, {
+      ...ignoredLeadCapture(),
       resolveConversation: vi.fn().mockResolvedValue(conversation),
       createRepository: () => repository as unknown as TenantConversationRepository,
       generateReply: vi.fn().mockResolvedValue({ result: agentResult, offeredActions: [] }),
@@ -217,6 +243,7 @@ describe('WhatsApp shared customer-service channel', () => {
     const markFailed = vi.fn().mockResolvedValue({ count: 1 });
 
     await expect(handleWhatsAppAgentMessage(input, {
+      ...ignoredLeadCapture(),
       resolveConversation: vi.fn().mockResolvedValue(conversation),
       createRepository: () => repository as unknown as TenantConversationRepository,
       generateReply: vi.fn().mockRejectedValue(failure),
@@ -237,6 +264,7 @@ describe('WhatsApp shared customer-service channel', () => {
     const markFailed = vi.fn().mockResolvedValue({ count: 1 });
 
     await expect(handleWhatsAppAgentMessage(input, {
+      ...ignoredLeadCapture(),
       resolveConversation: vi.fn().mockResolvedValue(conversation),
       createRepository: () => repository as unknown as TenantConversationRepository,
       generateReply: vi.fn().mockResolvedValue({ result: agentResult, offeredActions: [] }),

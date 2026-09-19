@@ -13,6 +13,7 @@ import { EntityFormPage } from './pages/EntityFormPage'
 import { EntityListPage } from './pages/EntityListPage'
 import { EntityTypesPage } from './pages/EntityTypesPage'
 import { LoginPage } from './pages/LoginPage'
+import { LeadDashboardPage } from './pages/LeadDashboardPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { OpeningHoursPage } from './pages/OpeningHoursPage'
 import { SchemaEditorPage } from './pages/SchemaEditorPage'
@@ -51,6 +52,7 @@ function App() {
             <Route path="agent-chat" element={<AgentChatPage />} />
             <Route path="conversations" element={<ConversationInboxPage />} />
             <Route path="conversations/:conversationId" element={<ConversationDetailPage />} />
+            <Route path="leads" element={<LeadDashboardPage />} />
             {import.meta.env.DEV ? <Route path="ai-playground" element={<AiPlaygroundPage />} /> : null}
           </Route>
         </Route>

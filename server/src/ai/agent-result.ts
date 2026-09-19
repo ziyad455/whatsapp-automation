@@ -2,7 +2,8 @@ import { z } from 'zod';
 
 export const agentIntentSchema = z.enum([
   'GENERAL_QUESTION', 'BUSINESS_INFORMATION', 'PRICE_INQUIRY',
-  'AVAILABILITY_INQUIRY', 'BOOKING_INTENT', 'HUMAN_REQUEST', 'COMPLAINT',
+  'AVAILABILITY_INQUIRY', 'PURCHASE_INTENT', 'BOOKING_INTENT', 'SUPPORT_REQUEST',
+  'HUMAN_REQUEST', 'COMPLAINT',
   'OUT_OF_SCOPE', 'UNKNOWN',
 ]);
 export type AgentIntent = z.infer<typeof agentIntentSchema>;

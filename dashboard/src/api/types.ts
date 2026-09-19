@@ -97,7 +97,9 @@ export type AgentIntent =
   | 'BUSINESS_INFORMATION'
   | 'PRICE_INQUIRY'
   | 'AVAILABILITY_INQUIRY'
+  | 'PURCHASE_INTENT'
   | 'BOOKING_INTENT'
+  | 'SUPPORT_REQUEST'
   | 'HUMAN_REQUEST'
   | 'COMPLAINT'
   | 'OUT_OF_SCOPE'
@@ -219,6 +221,56 @@ export interface ConversationInboxItem {
 export interface ConversationDetail extends Omit<ConversationInboxItem, 'latestMessage'> {
   createdAt: string
   messages: ConversationMessage[]
+}
+
+export type LeadStatus = 'NEW' | 'INTERESTED' | 'QUALIFIED' | 'WON' | 'LOST'
+export type LeadIntent =
+  | 'INFORMATION'
+  | 'PURCHASE_INTEREST'
+  | 'BOOKING_INTEREST'
+  | 'COMPLAINT'
+  | 'SUPPORT'
+export type LeadEvidenceType =
+  | 'PURCHASE_INTENT'
+  | 'BOOKING_INTENT'
+  | 'ITEM_OR_SERVICE'
+  | 'DATE_OR_TIME'
+  | 'BUDGET'
+  | 'QUANTITY_OR_DURATION'
+  | 'COMMITMENT'
+
+export interface LeadSummaryDetails {
+  summary: string
+  keyFacts: Array<{ label: string; value: string }>
+  constraints: string[]
+  missingImportantInfo: Array<
+    'ITEM_OR_SERVICE' | 'DATE_OR_TIME' | 'QUANTITY_OR_DURATION' | 'BUDGET'
+  >
+}
+
+export interface LeadItem {
+  id: string
+  status: LeadStatus
+  intent: LeadIntent
+  statusSource: 'AUTOMATIC' | 'MANUAL'
+  summary: string | null
+  summaryDetails: LeadSummaryDetails | null
+  lastActivityAt: string
+  statusUpdatedAt: string
+  createdAt: string
+  updatedAt: string
+  customer: ConversationCustomer
+  conversation: {
+    id: string
+    mode: ConversationMode
+    handoffReason: ConversationHandoffReason | null
+  }
+  evidence: Array<{
+    id: string
+    evidenceTypes: LeadEvidenceType[]
+    createdAt: string
+    message: { id: string; content: string; createdAt: string }
+  }>
 }
 
 export interface BusinessUnderstanding {

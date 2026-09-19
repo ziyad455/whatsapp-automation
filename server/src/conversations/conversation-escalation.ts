@@ -12,7 +12,10 @@ export const determineHandoffReason = (
     return 'CUSTOMER_REQUEST';
   }
   if (result.detectedIntent === 'COMPLAINT') return 'COMPLAINT';
-  if (result.detectedIntent === 'BOOKING_INTENT') return 'PURCHASE_INTENT';
+  if (
+    result.detectedIntent === 'BOOKING_INTENT' ||
+    result.detectedIntent === 'PURCHASE_INTENT'
+  ) return 'PURCHASE_INTENT';
   if (
     result.needsHuman ||
     ['MISSING_INFORMATION', 'STALE_INFORMATION', 'POLICY_REQUIRES_HUMAN']

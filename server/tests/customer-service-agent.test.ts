@@ -11,6 +11,7 @@ import { analyzeCustomerMessage } from '../src/ai/customer-message-analysis';
 import { buildConversationMessages, HISTORY_MESSAGE_LIMIT, HISTORY_CHARACTER_LIMIT } from '../src/ai/conversation-context';
 import { AI_RUN_KEY, requireCustomerServiceRun } from '../src/ai/request-context';
 import { CUSTOMER_SERVICE_AGENT_ID, customerServiceAgent } from '../src/mastra/agents/customer-service-agent';
+import { LEAD_SUMMARY_WORKER_ID, leadSummaryWorker } from '../src/mastra/agents/lead-summary-worker';
 import {
   businessEntitySearchOutputSchema,
   businessRulesOutputSchema,
@@ -23,9 +24,10 @@ import { TENANT_CONTEXT_KEY } from '../src/tenancy/tenant-context';
 import { fakeTenant, fakeProvider, fakeMetadata } from './helpers/ai-fixtures';
 
 describe('shared customer-service runtime', () => {
-  it('keeps one shared registration, six read capabilities, one bounded action-offer control, and no memory', async () => {
-    expect(Object.values(mastra.listAgents())).toEqual([customerServiceAgent]);
+  it('keeps one shared customer-service agent plus the isolated summary worker', async () => {
+    expect(Object.values(mastra.listAgents())).toEqual([customerServiceAgent, leadSummaryWorker]);
     expect(mastra.getAgentById(CUSTOMER_SERVICE_AGENT_ID)).toBe(customerServiceAgent);
+    expect(mastra.getAgentById(LEAD_SUMMARY_WORKER_ID)).toBe(leadSummaryWorker);
     expect(Object.keys(await customerServiceAgent.listTools())).toEqual([
       'getBusinessProfile',
       'getOpeningHours',
@@ -36,6 +38,8 @@ describe('shared customer-service runtime', () => {
       'offerCustomerServiceActions',
     ]);
     expect(await customerServiceAgent.getMemory()).toBeUndefined();
+    expect(await leadSummaryWorker.listTools()).toEqual({});
+    expect(await leadSummaryWorker.getMemory()).toBeUndefined();
   });
 
   it('builds only projected configuration, never a catalog or internal IDs', async () => {

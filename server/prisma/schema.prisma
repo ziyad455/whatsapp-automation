@@ -78,6 +78,7 @@ enum AuditTargetType {
   BUSINESS_FIELD_DEFINITION
   BUSINESS_ENTITY
   CONVERSATION
+  LEAD
 
   @@map("audit_target_type")
 }
@@ -90,6 +91,7 @@ enum AuditAction {
   SCHEMA_CHANGE
   VERIFY
   MODE_CHANGE
+  STATUS_CHANGE
 
   @@map("audit_action")
 }
@@ -187,6 +189,45 @@ enum WhatsAppDeliveryStatus {
   @@map("whatsapp_delivery_status")
 }
 
+enum LeadStatus {
+  NEW
+  INTERESTED
+  QUALIFIED
+  WON
+  LOST
+
+  @@map("lead_status")
+}
+
+enum LeadIntent {
+  INFORMATION
+  PURCHASE_INTEREST
+  BOOKING_INTEREST
+  COMPLAINT
+  SUPPORT
+
+  @@map("lead_intent")
+}
+
+enum LeadStatusSource {
+  AUTOMATIC
+  MANUAL
+
+  @@map("lead_status_source")
+}
+
+enum LeadEvidenceType {
+  PURCHASE_INTENT
+  BOOKING_INTENT
+  ITEM_OR_SERVICE
+  DATE_OR_TIME
+  BUDGET
+  QUANTITY_OR_DURATION
+  COMMITMENT
+
+  @@map("lead_evidence_type")
+}
+
 model Business {
   id                       String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                     String                  @db.Text
@@ -217,6 +258,8 @@ model Business {
   whatsappConnections      WhatsAppConnection[]
   customers                Customer[]
   whatsappMessages         WhatsAppMessage[]
+  leads                    Lead[]
+  leadEvidence             LeadEvidence[]
 
   @@map("businesses")
 }
@@ -248,6 +291,7 @@ model Customer {
   business      Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
   messages      WhatsAppMessage[]
   conversations Conversation[]
+  leads         Lead[]
 
   @@unique([businessId, id], map: "customers_business_id_id_unique")
   @@unique([businessId, whatsappPhone], map: "customers_business_id_whatsapp_phone_unique")
@@ -311,8 +355,10 @@ model Conversation {
   whatsappConnection     WhatsAppConnection?        @relation(fields: [businessId, whatsappConnectionId], references: [businessId, id], onDelete: Restrict)
   assignedBusinessUser   BusinessUser?              @relation("ConversationAssignment", fields: [businessId, assignedBusinessUserId], references: [businessId, id], onDelete: Restrict)
   messages               ConversationMessage[]
+  leads                  Lead[]
 
   @@unique([businessId, id], map: "conversations_business_id_id_unique")
+  @@unique([businessId, id, customerId], map: "conversations_business_id_customer_id_unique")
   @@unique([businessId, channel, participantKey], map: "conversations_business_channel_participant_unique")
   @@unique([businessId, channel, customerId], map: "conversations_business_channel_customer_unique")
   @@index([businessId, lastActivityAt(sort: Desc)], map: "conversations_business_last_activity_index")
@@ -335,11 +381,59 @@ model ConversationMessage {
   conversation         Conversation                  @relation(fields: [businessId, conversationId], references: [businessId, id], onDelete: Cascade)
   sentByBusinessUser   BusinessUser?                 @relation("HumanMessageSender", fields: [businessId, sentByBusinessUserId], references: [businessId, id], onDelete: Restrict)
   whatsappMessage      WhatsAppMessage?
+  leadEvidence         LeadEvidence[]
 
   @@unique([businessId, id], map: "conversation_messages_business_id_id_unique")
+  @@unique([businessId, conversationId, id], map: "conversation_messages_business_conversation_id_unique")
   @@unique([businessId, conversationId, sequence], map: "conversation_messages_business_conversation_sequence_unique")
   @@index([businessId, conversationId, createdAt], map: "conversation_messages_business_conversation_created_index")
   @@map("conversation_messages")
+}
+
+model Lead {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId       String           @map("business_id") @db.Uuid
+  customerId       String           @map("customer_id") @db.Uuid
+  conversationId   String           @map("conversation_id") @db.Uuid
+  status           LeadStatus       @default(NEW)
+  intent           LeadIntent
+  statusSource     LeadStatusSource @default(AUTOMATIC) @map("status_source")
+  summary          String?          @db.Text
+  summaryDetails   Json?            @map("summary_details") @db.JsonB
+  summaryUpdatedAt DateTime?        @map("summary_updated_at") @db.Timestamptz(6)
+  statusUpdatedAt  DateTime         @default(now()) @map("status_updated_at") @db.Timestamptz(6)
+  lastActivityAt   DateTime         @default(now()) @map("last_activity_at") @db.Timestamptz(6)
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  business         Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer         Customer         @relation(fields: [businessId, customerId], references: [businessId, id], onDelete: Restrict)
+  conversation     Conversation     @relation(fields: [businessId, conversationId, customerId], references: [businessId, id, customerId], onDelete: Restrict)
+  evidence         LeadEvidence[]
+
+  @@unique([businessId, id], map: "leads_business_id_id_unique")
+  @@unique([businessId, id, conversationId], map: "leads_business_id_conversation_id_unique")
+  @@index([businessId, status, lastActivityAt(sort: Desc)], map: "leads_business_status_activity_index")
+  @@index([businessId, customerId, lastActivityAt(sort: Desc)], map: "leads_business_customer_activity_index")
+  @@index([businessId, conversationId], map: "leads_business_conversation_index")
+  @@map("leads")
+}
+
+model LeadEvidence {
+  id             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId     String              @map("business_id") @db.Uuid
+  leadId         String              @map("lead_id") @db.Uuid
+  conversationId String              @map("conversation_id") @db.Uuid
+  messageId      String              @map("message_id") @db.Uuid
+  evidenceTypes  LeadEvidenceType[]  @map("evidence_types")
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  business       Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  lead           Lead                @relation(fields: [businessId, leadId, conversationId], references: [businessId, id, conversationId], onDelete: Cascade)
+  message        ConversationMessage @relation(fields: [businessId, conversationId, messageId], references: [businessId, conversationId, id], onDelete: Restrict)
+
+  @@unique([businessId, leadId, messageId], map: "lead_evidence_business_lead_message_unique")
+  @@index([businessId, leadId, createdAt], map: "lead_evidence_business_lead_created_index")
+  @@index([businessId, conversationId, messageId], map: "lead_evidence_business_conversation_message_index")
+  @@map("lead_evidence")
 }
 
 model BusinessOpeningHour {

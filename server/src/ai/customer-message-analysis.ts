@@ -32,6 +32,18 @@ const BOOKING_PHRASES = [
   ['book'], ['booking'], ['reserve'], ['reservation'], ['appointment'], ['rendez', 'vous'],
   ['حجز'], ['موعد'], ['نحجز'], ['بغيت', 'نحجز'], ['bghit', 'n7jez'], ['bghit', 'nhjez'],
 ] as const;
+const PURCHASE_PHRASES = [
+  ['buy'], ['purchase'], ['order'], ['i', 'need'], ['i', 'want'],
+  ['acheter'], ['commander'], ['je', 'veux'], ['j', 'ai', 'besoin'],
+  ['شراء'], ['اشتري'], ['أريد'], ['بغيت'], ['نحتاج'],
+  ['bghit'], ['n7taj'], ['nhtaj'],
+] as const;
+const SUPPORT_PHRASES = [
+  ['help'], ['support'], ['problem'], ['issue'], ['not', 'working'],
+  ['aide'], ['assistance'], ['problème'], ['probleme'], ['ne', 'marche', 'pas'],
+  ['مساعدة'], ['مشكلة'], ['لا', 'يعمل'], ['عاونوني'],
+  ['mosa3ada'], ['mochkil'], ['mouchkil'], ['ma', 'khdamch'],
+] as const;
 const PRICE_PHRASES = [
   ['price'], ['cost'], ['how', 'much'], ['rate'], ['prix'], ['tarif'], ['combien'],
   ['ثمن'], ['سعر'], ['شحال'], ['chhal'], ['taman'],
@@ -89,6 +101,8 @@ const detectIntent = (tokens: readonly string[]): AgentIntent => {
   if (containsAny(tokens, HUMAN_PHRASES)) return 'HUMAN_REQUEST';
   if (containsAny(tokens, COMPLAINT_PHRASES)) return 'COMPLAINT';
   if (containsAny(tokens, BOOKING_PHRASES)) return 'BOOKING_INTENT';
+  if (containsAny(tokens, SUPPORT_PHRASES)) return 'SUPPORT_REQUEST';
+  if (containsAny(tokens, PURCHASE_PHRASES)) return 'PURCHASE_INTENT';
   if (containsAny(tokens, PRICE_PHRASES)) return 'PRICE_INQUIRY';
   if (containsAny(tokens, AVAILABILITY_PHRASES)) return 'AVAILABILITY_INQUIRY';
   if (containsAny(tokens, BUSINESS_INFORMATION_PHRASES)) return 'BUSINESS_INFORMATION';
