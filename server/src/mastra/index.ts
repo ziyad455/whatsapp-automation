@@ -16,6 +16,7 @@ import { readinessMiddleware, requestContextMiddleware } from '../http/middlewar
 import { getOrCreateRequestId } from '../http/request-context';
 import { applicationRoutes } from '../http/routes';
 import { customerServiceAgent } from './agents/customer-service-agent';
+import { leadSummaryWorker } from './agents/lead-summary-worker';
 import { startScheduleTool, stopScheduleTool } from './tools/schedule-tools';
 import { customerServiceBusinessTools } from './tools/business-information-tools';
 
@@ -27,7 +28,7 @@ export const mastra = new Mastra({
   bundler: {
     externals: ['@duckdb/node-bindings'],
   },
-  agents: { customerServiceAgent },
+  agents: { customerServiceAgent, leadSummaryWorker },
   tools: { startScheduleTool, stopScheduleTool, ...customerServiceBusinessTools },
   logger: applicationLogger,
   server: {

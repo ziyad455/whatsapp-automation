@@ -15,6 +15,8 @@ import type {
   ConversationMode,
   FieldIssue,
   OpeningHour,
+  LeadItem,
+  LeadStatus,
 } from './types'
 
 const serverUrl = (import.meta.env.VITE_SERVER_URL ?? 'http://localhost:4111').replace(/\/$/, '')
@@ -106,6 +108,22 @@ export const dashboardApi = {
       `/dashboard/conversations/${conversationId}/replies`,
       { method: 'POST', businessId, body: { content } },
     ),
+  listLeads: (businessId: string, status?: LeadStatus) =>
+    apiRequest<{ leads: LeadItem[] }>(
+      `/dashboard/leads${status ? `?status=${encodeURIComponent(status)}` : ''}`,
+      { businessId },
+    ),
+  setLeadStatus: (businessId: string, leadId: string, status: LeadStatus) =>
+    apiRequest<{ lead: LeadItem }>(`/dashboard/leads/${leadId}/status`, {
+      method: 'POST',
+      businessId,
+      body: { status },
+    }),
+  refreshLeadSummary: (businessId: string, leadId: string) =>
+    apiRequest<{ lead: LeadItem }>(`/dashboard/leads/${leadId}/summary`, {
+      method: 'POST',
+      businessId,
+    }),
   getAgentConversation: (businessId: string) =>
     apiRequest<{ conversation: AgentConversation | null }>('/dashboard/agent-chat', {
       businessId,
