@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { runLeadSummaryWorker, type LeadSummaryInput } from '../src/leads/lead-summary';
+import {
+  buildProvisionalLeadSummary,
+  runLeadSummaryWorker,
+  type LeadSummaryInput,
+} from '../src/leads/lead-summary';
 
 const completeEvidence: LeadSummaryInput = {
   intent: 'BOOKING_INTEREST',
@@ -98,5 +102,20 @@ describe('specialized Lead summary worker boundary', () => {
       missingImportantInfo: [],
       status: 'WON',
     }))).rejects.toBeDefined();
+  });
+
+  it('builds a grounded provisional summary without inventing extracted facts', () => {
+    expect(buildProvisionalLeadSummary({
+      intent: 'PURCHASE_INTEREST',
+      evidence: [{
+        content: 'I want to rent a car for 4 days',
+        evidenceTypes: ['PURCHASE_INTENT', 'ITEM_OR_SERVICE', 'QUANTITY_OR_DURATION', 'COMMITMENT'],
+      }],
+    })).toEqual({
+      summary: 'Customer evidence: I want to rent a car for 4 days',
+      keyFacts: [],
+      constraints: [],
+      missingImportantInfo: ['DATE_OR_TIME', 'BUDGET'],
+    });
   });
 });

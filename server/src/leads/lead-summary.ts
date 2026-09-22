@@ -46,6 +46,33 @@ export const leadSummaryInputSchema = z.object({
 export type LeadSummaryInput = z.infer<typeof leadSummaryInputSchema>;
 export type LeadSummaryExecutor = (input: LeadSummaryInput) => Promise<unknown>;
 
+const IMPORTANT_EVIDENCE_TYPES = [
+  'ITEM_OR_SERVICE',
+  'DATE_OR_TIME',
+  'QUANTITY_OR_DURATION',
+  'BUDGET',
+] as const;
+
+export const buildProvisionalLeadSummary = (input: LeadSummaryInput): LeadSummary => {
+  const trustedInput = leadSummaryInputSchema.parse(input);
+  const evidenceTypes = new Set(
+    trustedInput.evidence.flatMap(item => item.evidenceTypes),
+  );
+  const evidence = [...new Set(trustedInput.evidence.map(item =>
+    item.content.replace(/\s+/gu, ' ').trim(),
+  ))].join(' | ');
+  const prefix = 'Customer evidence: ';
+
+  return leadSummarySchema.parse({
+    summary: `${prefix}${evidence.slice(0, 500 - prefix.length)}`,
+    keyFacts: [],
+    constraints: [],
+    missingImportantInfo: IMPORTANT_EVIDENCE_TYPES.filter(type =>
+      !evidenceTypes.has(type),
+    ),
+  });
+};
+
 const CONCRETE_WORDS = new Set([
   'mad', 'dhs', 'dh', 'dirham', 'dirhams',
   'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',

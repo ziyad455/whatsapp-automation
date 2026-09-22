@@ -340,4 +340,34 @@ describe('Sprint 11 tenant-scoped Lead tracking', () => {
     expect(afterFailure.summaryDetails).toEqual(beforeFailure.summaryDetails);
     expect(afterFailure.status).toBe(beforeFailure.status);
   });
+
+  it('stores a grounded provisional summary when initial enrichment fails', async () => {
+    const first = await appendCustomerMessage(
+      fixtureA,
+      'I want to rent a car for 4 days.',
+    );
+    const capture = await captureLeadFromCustomerMessage(
+      { businessId: fixtureA.businessId },
+      {
+        conversationId: first.conversation.id,
+        messageId: first.message.id,
+        detectedIntent: 'PURCHASE_INTENT',
+      },
+    );
+
+    await expect(refreshLeadSummary(
+      { businessId: fixtureA.businessId },
+      capture.leadId!,
+      async () => { throw new Error('Provider unavailable'); },
+    )).resolves.toMatchObject({
+      summary: 'Customer evidence: I want to rent a car for 4 days.',
+      keyFacts: [],
+    });
+
+    await expect(prisma.lead.findUniqueOrThrow({ where: { id: capture.leadId! } }))
+      .resolves.toMatchObject({
+        summary: 'Customer evidence: I want to rent a car for 4 days.',
+        status: 'NEW',
+      });
+  });
 });
