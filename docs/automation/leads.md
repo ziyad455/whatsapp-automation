@@ -27,7 +27,7 @@ Staff may move a lead between any lifecycle statuses in the MVP. A manual change
 
 A lead links to its business, customer, and originating conversation. Lead evidence references canonical customer messages and database constraints require the lead, conversation, message, and evidence to share the same business and conversation.
 
-The specialized Lead Summary worker receives only evidence loaded and authorized by the application. Its structured output is validated and checked for unsupported concrete facts before persistence. It cannot select tenants, query tools, write records, or change lifecycle state. Summary failure leaves the lead and any previous summary intact.
+The specialized Lead Summary worker receives only evidence loaded and authorized by the application. Its structured output is validated and checked for unsupported concrete facts before persistence. It cannot select tenants, query tools, write records, or change lifecycle state. If initial enrichment fails, the application stores a clearly provisional summary made only from canonical evidence; a later failure preserves any existing summary.
 
 Summaries save staff time but are not substitutes for source messages or current business facts.
 

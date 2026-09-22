@@ -12,6 +12,7 @@ import {
   type LeadQualificationResult,
 } from './lead-qualification';
 import {
+  buildProvisionalLeadSummary,
   leadSummarySchema,
   runLeadSummaryWorker,
   type LeadSummary,
@@ -264,13 +265,26 @@ export const refreshLeadSummary = async (
     throw new LeadOperationError('CONFLICT', 'Lead has no evidence to summarize.');
   }
 
-  const summary = await runLeadSummaryWorker({
+  const summaryInput = {
     intent: lead.intent,
     evidence: [...lead.evidence].reverse().map(item => ({
       content: item.message.content,
       evidenceTypes: item.evidenceTypes,
     })),
-  }, executor);
+  } satisfies Parameters<typeof runLeadSummaryWorker>[0];
+  let summary: LeadSummary;
+  try {
+    summary = await runLeadSummaryWorker(summaryInput, executor);
+  } catch (error) {
+    if (lead.summary !== null) throw error;
+    summary = buildProvisionalLeadSummary(summaryInput);
+    applicationLogger.warn('Lead summary worker failed; stored grounded provisional summary', {
+      businessId: tenant.businessId,
+      conversationId: lead.conversationId,
+      leadId: lead.id,
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+    });
+  }
   const updated = await prisma.lead.updateMany({
     where: { id: lead.id, businessId: tenant.businessId },
     data: {
