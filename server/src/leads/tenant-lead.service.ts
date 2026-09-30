@@ -314,7 +314,20 @@ const leadDto = (lead: {
   statusUpdatedAt: Date;
   createdAt: Date;
   updatedAt: Date;
-  customer: { id: string; whatsappPhone: string };
+  customer: {
+    id: string;
+    whatsappPhone: string;
+    followUpConsentAt: Date | null;
+    followUpOptedOutAt: Date | null;
+  };
+  followUps: Array<{
+    id: string;
+    status: string;
+    scheduledAt: Date;
+    sentAt: Date | null;
+    reasonCode: string | null;
+    attemptCount: number;
+  }>;
   conversation: {
     id: string;
     mode: 'AI' | 'HUMAN' | 'PAUSED';
@@ -337,7 +350,17 @@ const leadDto = (lead: {
   statusUpdatedAt: lead.statusUpdatedAt.toISOString(),
   createdAt: lead.createdAt.toISOString(),
   updatedAt: lead.updatedAt.toISOString(),
-  customer: lead.customer,
+  customer: {
+    id: lead.customer.id,
+    whatsappPhone: lead.customer.whatsappPhone,
+    followUpConsentAt: lead.customer.followUpConsentAt?.toISOString() ?? null,
+    followUpOptedOutAt: lead.customer.followUpOptedOutAt?.toISOString() ?? null,
+  },
+  followUps: lead.followUps.map(item => ({
+    ...item,
+    scheduledAt: item.scheduledAt.toISOString(),
+    sentAt: item.sentAt?.toISOString() ?? null,
+  })),
   conversation: lead.conversation,
   evidence: lead.evidence.map(item => ({
     id: item.id,
@@ -352,7 +375,15 @@ const leadDto = (lead: {
 });
 
 const dashboardInclude = {
-  customer: { select: { id: true, whatsappPhone: true } },
+  customer: { select: {
+    id: true, whatsappPhone: true, followUpConsentAt: true, followUpOptedOutAt: true,
+  } },
+  followUps: {
+    orderBy: [{ createdAt: 'desc' }],
+    take: 3,
+    select: { id: true, status: true, scheduledAt: true, sentAt: true,
+      reasonCode: true, attemptCount: true },
+  },
   conversation: { select: { id: true, mode: true, handoffReason: true } },
   evidence: {
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
@@ -393,6 +424,10 @@ export const createTenantLeadDashboardService = (tenant: TenantContext) => ({
           where: { id: leadId, businessId: tenant.businessId },
         });
         if (!existing) throw new LeadOperationError('NOT_FOUND', 'Lead was not found.');
+        if (status === 'WON' || status === 'LOST') {
+          await transaction.$queryRaw`SELECT 1::integer AS locked FROM pg_advisory_xact_lock(
+            hashtext(${tenant.businessId}), hashtext(${existing.customerId}))`;
+        }
 
         const updated = await transaction.lead.updateMany({
           where: { id: leadId, businessId: tenant.businessId, updatedAt: existing.updatedAt },
@@ -400,6 +435,13 @@ export const createTenantLeadDashboardService = (tenant: TenantContext) => ({
         });
         if (updated.count !== 1) {
           throw new LeadOperationError('CONFLICT', 'Lead changed. Reload and try again.');
+        }
+        if (status === 'WON' || status === 'LOST') {
+          await transaction.followUp.updateMany({
+            where: { businessId: tenant.businessId, leadId,
+              status: { in: ['PENDING', 'PROCESSING'] } },
+            data: { status: 'CANCELLED', cancelledAt: new Date(), reasonCode: 'LEAD_CLOSED' },
+          });
         }
         await appendTenantAuditEvent(transaction, tenant, {
           targetType: 'LEAD',

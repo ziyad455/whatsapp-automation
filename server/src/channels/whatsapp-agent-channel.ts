@@ -12,6 +12,7 @@ import {
   type TenantConversationRepository,
 } from '../conversations/tenant-conversation.repository';
 import type { ConversationMode } from '../generated/prisma/client';
+import { scheduleFollowUpForLead } from '../follow-ups/follow-up.service';
 import type { TenantScope } from '../tenancy/tenant-context';
 import { applicationLogger } from '../http/logger';
 import {
@@ -57,6 +58,7 @@ export interface WhatsAppAgentChannelDependencies {
   readonly markFailed?: typeof markInboundWhatsAppMessageFailed;
   readonly captureLead?: typeof captureLeadFromCustomerMessage;
   readonly refreshLeadSummary?: typeof refreshPersistedLeadSummary;
+  readonly scheduleFollowUp?: typeof scheduleFollowUpForLead;
 }
 
 export const handleWhatsAppAgentMessage = async (
@@ -132,6 +134,18 @@ export const handleWhatsAppAgentMessage = async (
         });
       }
     };
+    const scheduleFollowUpSafely = async (capture: LeadCaptureResult | null) => {
+      if (!capture?.leadId || !capture.summaryRequired) return;
+      try {
+        await (dependencies.scheduleFollowUp ?? scheduleFollowUpForLead)(tenant, capture.leadId);
+      } catch (error) {
+        applicationLogger.warn('Follow-up scheduling failed without interrupting WhatsApp processing', {
+          businessId: tenant.businessId,
+          leadId: capture.leadId,
+          errorName: error instanceof Error ? error.name : 'UnknownError',
+        });
+      }
+    };
 
     if (currentConversation.mode !== 'AI' || currentConversation.status !== 'OPEN') {
       const scope = classifyCustomerScope(customerMessage.content);
@@ -144,6 +158,7 @@ export const handleWhatsAppAgentMessage = async (
         throw new Error('The WhatsApp inbound message could not be marked as processed.');
       }
       await refreshSummarySafely(leadCapture);
+      await scheduleFollowUpSafely(leadCapture);
       return {
         conversationId: currentConversation.id,
         outcome: 'STORED_WITHOUT_AUTOMATION',
@@ -174,6 +189,7 @@ export const handleWhatsAppAgentMessage = async (
         throw new Error('The WhatsApp inbound message could not be marked as processed.');
       }
       await refreshSummarySafely(leadCapture);
+      await scheduleFollowUpSafely(leadCapture);
       const latest = await repository.findById(currentConversation.id);
       return {
         conversationId: currentConversation.id,
@@ -196,6 +212,7 @@ export const handleWhatsAppAgentMessage = async (
       throw new Error('The WhatsApp inbound message could not be marked as processed.');
     }
     await refreshSummarySafely(leadCapture);
+    await scheduleFollowUpSafely(leadCapture);
 
     return {
       conversationId: currentConversation.id,

@@ -166,4 +166,47 @@ describe('Sprint 11 Lead dashboard HTTP API', () => {
       lead: { id: leadId, status: 'QUALIFIED', statusSource: 'MANUAL' },
     });
   });
+
+  it('validates tenant policy and requires an explicit consent attestation', async () => {
+    const headers = {
+      cookie, 'content-type': 'application/json', 'x-business-id': businessId,
+    };
+    const settings = {
+      followUpsEnabled: true,
+      initialFollowUpDelayMinutes: 30,
+      followUpWindowStartMinutes: 540,
+      followUpWindowEndMinutes: 1200,
+      maxFollowUpsPerLead: 1,
+      minimumFollowUpIntervalMinutes: 1440,
+    };
+    const invalid = await request('/dashboard/follow-up-settings', {
+      method: 'PUT', headers, body: JSON.stringify({ ...settings, initialFollowUpDelayMinutes: 0 }),
+    });
+    expect(invalid.status).toBe(400);
+    const updated = await request('/dashboard/follow-up-settings', {
+      method: 'PUT', headers, body: JSON.stringify(settings),
+    });
+    expect(updated.status).toBe(200);
+    await expect(updated.json()).resolves.toMatchObject({ settings });
+    const foreign = await request(`/dashboard/leads/${foreignLeadId}/follow-up-consent`, {
+      method: 'POST', headers, body: JSON.stringify({ consent: true, staffAttestation: true }),
+    });
+    expect(foreign.status).toBe(404);
+    const unattested = await request(`/dashboard/leads/${leadId}/follow-up-consent`, {
+      method: 'POST', headers, body: JSON.stringify({ consent: true }),
+    });
+    expect(unattested.status).toBe(400);
+    const own = await request(`/dashboard/leads/${leadId}/follow-up-consent`, {
+      method: 'POST', headers, body: JSON.stringify({ consent: true, staffAttestation: true }),
+    });
+    expect(own.status).toBe(200);
+    const pending = await prisma.followUp.findFirst({ where: { businessId, leadId } });
+    expect(pending?.status).toBe('PENDING');
+    const withdrawn = await request(`/dashboard/leads/${leadId}/follow-up-consent`, {
+      method: 'POST', headers, body: JSON.stringify({ consent: false, staffAttestation: true }),
+    });
+    expect(withdrawn.status).toBe(200);
+    expect(await prisma.followUp.findUniqueOrThrow({ where: { id: pending!.id } }))
+      .toMatchObject({ status: 'CANCELLED', reasonCode: 'CUSTOMER_OPTED_OUT' });
+  });
 });

@@ -217,6 +217,10 @@ export const createTenantConversationInboxService = (tenant: TenantContext) => (
       if (!existing) {
         throw new ConversationOperationError('NOT_FOUND', 'Conversation was not found.');
       }
+      if (mode !== 'AI' && existing.customerId) {
+        await transaction.$queryRaw`SELECT 1::integer AS locked FROM pg_advisory_xact_lock(
+          hashtext(${tenant.businessId}), hashtext(${existing.customerId}))`;
+      }
       const pendingOutbound = await transaction.whatsAppMessage.count({
         where: {
           businessId: tenant.businessId,
@@ -245,6 +249,15 @@ export const createTenantConversationInboxService = (tenant: TenantContext) => (
         },
       });
       if (updated.count !== 1) return false;
+
+      if (mode !== 'AI') {
+        await transaction.followUp.updateMany({
+          where: { businessId: tenant.businessId, conversationId,
+            status: { in: ['PENDING', 'PROCESSING'] } },
+          data: { status: 'CANCELLED', cancelledAt: new Date(),
+            reasonCode: mode === 'HUMAN' ? 'HUMAN_MODE' : 'PAUSED' },
+        });
+      }
 
       await appendTenantAuditEvent(transaction, tenant, {
         targetType: 'CONVERSATION',

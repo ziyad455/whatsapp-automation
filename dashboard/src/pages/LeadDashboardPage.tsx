@@ -101,6 +101,23 @@ export function LeadDashboardPage() {
     }
   }
 
+  const updateConsent = async (lead: LeadItem, consent: boolean) => {
+    if (!selectedBusiness) return
+    if (consent && !window.confirm(
+      'Confirm this customer explicitly agreed to WhatsApp follow-up messages from this business. Do not record consent based only on a purchase inquiry.',
+    )) return
+    setBusyLeadId(lead.id)
+    setError(null)
+    try {
+      await dashboardApi.recordFollowUpConsent(selectedBusiness.id, lead.id, consent)
+      await loadLeads()
+    } catch (reason) {
+      setError(getErrorMessage(reason))
+    } finally {
+      setBusyLeadId(null)
+    }
+  }
+
   return (
     <div className="page-stack">
       <PageHeader
@@ -179,6 +196,16 @@ export function LeadDashboardPage() {
                 ))}
               </div>
 
+              <div className="lead-row__meta">
+                {lead.customer.followUpConsentAt && !lead.customer.followUpOptedOutAt
+                  ? <span>WhatsApp follow-up consent recorded</span>
+                  : <span>No follow-up consent recorded</span>}
+                {lead.followUps[0] ? <span>
+                  Follow-up {formatLabel(lead.followUps[0].status)} · {formatTime(lead.followUps[0].scheduledAt)}
+                  {lead.followUps[0].reasonCode ? ` · ${formatLabel(lead.followUps[0].reasonCode)}` : ''}
+                </span> : null}
+              </div>
+
               <div className="lead-row__footer">
                 <div className="lead-row__meta">
                   <time dateTime={lead.lastActivityAt}>Active {formatTime(lead.lastActivityAt)}</time>
@@ -187,6 +214,13 @@ export function LeadDashboardPage() {
                   {lead.statusSource === 'MANUAL' ? <span>Staff controlled</span> : null}
                 </div>
                 <div className="lead-row__actions">
+                  <button className="secondary-button" disabled={busyLeadId === lead.id}
+                    onClick={() => void updateConsent(lead,
+                      !(lead.customer.followUpConsentAt && !lead.customer.followUpOptedOutAt))}
+                    type="button">
+                    {lead.customer.followUpConsentAt && !lead.customer.followUpOptedOutAt
+                      ? 'Withdraw follow-up consent' : 'Record explicit opt-in'}
+                  </button>
                   <label>
                     <span className="visually-hidden">Status for {formatPhone(lead.customer.whatsappPhone)}</span>
                     <select

@@ -14,6 +14,7 @@ import { EntityListPage } from './pages/EntityListPage'
 import { EntityTypesPage } from './pages/EntityTypesPage'
 import { LoginPage } from './pages/LoginPage'
 import { LeadDashboardPage } from './pages/LeadDashboardPage'
+import { FollowUpSettingsPage } from './pages/FollowUpSettingsPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { OpeningHoursPage } from './pages/OpeningHoursPage'
 import { SchemaEditorPage } from './pages/SchemaEditorPage'
@@ -53,6 +54,7 @@ function App() {
             <Route path="conversations" element={<ConversationInboxPage />} />
             <Route path="conversations/:conversationId" element={<ConversationDetailPage />} />
             <Route path="leads" element={<LeadDashboardPage />} />
+            <Route path="follow-ups" element={<FollowUpSettingsPage />} />
             {import.meta.env.DEV ? <Route path="ai-playground" element={<AiPlaygroundPage />} /> : null}
           </Route>
         </Route>

@@ -79,6 +79,7 @@ enum AuditTargetType {
   BUSINESS_ENTITY
   CONVERSATION
   LEAD
+  CUSTOMER
 
   @@map("audit_target_type")
 }
@@ -228,38 +229,62 @@ enum LeadEvidenceType {
   @@map("lead_evidence_type")
 }
 
+enum FollowUpStatus {
+  PENDING
+  PROCESSING
+  SENDING
+  SENT
+  CANCELLED
+  FAILED
+
+  @@map("follow_up_status")
+}
+
+enum FollowUpType {
+  INITIAL
+
+  @@map("follow_up_type")
+}
+
 model Business {
-  id                       String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                     String                  @db.Text
-  category                 String                  @db.Text
-  description              String?                 @db.Text
-  phone                    String?                 @db.Text
-  address                  String?                 @db.Text
-  timezone                 String                  @db.Text
-  currency                 String                  @db.VarChar(3)
-  defaultLanguage          String                  @map("default_language") @db.Text
-  supportedLanguages       String[]                @default([]) @map("supported_languages")
-  lifecycleStatus          BusinessLifecycleStatus @map("lifecycle_status")
-  profileSource            DataSource              @default(MANUAL) @map("profile_source")
-  profileExternalId        String?                 @map("profile_external_id") @db.Text
-  profileLastVerifiedAt    DateTime?               @map("profile_last_verified_at") @db.Timestamptz(6)
-  profileFreshnessClass    FreshnessClass          @default(STABLE) @map("profile_freshness_class")
-  profileStaleAfterSeconds Int?                    @map("profile_stale_after_seconds")
-  createdAt                DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  memberships              BusinessUser[]
-  entityTypes              BusinessEntityType[]
-  entities                 BusinessEntity[]
-  openingHours             BusinessOpeningHour[]
-  rules                    BusinessRule[]
-  auditEvents              AuditEvent[]
-  conversations            Conversation[]
-  conversationMessages     ConversationMessage[]
-  whatsappConnections      WhatsAppConnection[]
-  customers                Customer[]
-  whatsappMessages         WhatsAppMessage[]
-  leads                    Lead[]
-  leadEvidence             LeadEvidence[]
+  id                             String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                           String                  @db.Text
+  category                       String                  @db.Text
+  description                    String?                 @db.Text
+  phone                          String?                 @db.Text
+  address                        String?                 @db.Text
+  timezone                       String                  @db.Text
+  followUpsEnabled               Boolean                 @default(false) @map("follow_ups_enabled")
+  initialFollowUpDelayMinutes    Int                     @default(60) @map("initial_follow_up_delay_minutes")
+  followUpWindowStartMinutes     Int                     @default(540) @map("follow_up_window_start_minutes")
+  followUpWindowEndMinutes       Int                     @default(1200) @map("follow_up_window_end_minutes")
+  maxFollowUpsPerLead            Int                     @default(1) @map("max_follow_ups_per_lead")
+  minimumFollowUpIntervalMinutes Int                     @default(1440) @map("minimum_follow_up_interval_minutes")
+  currency                       String                  @db.VarChar(3)
+  defaultLanguage                String                  @map("default_language") @db.Text
+  supportedLanguages             String[]                @default([]) @map("supported_languages")
+  lifecycleStatus                BusinessLifecycleStatus @map("lifecycle_status")
+  profileSource                  DataSource              @default(MANUAL) @map("profile_source")
+  profileExternalId              String?                 @map("profile_external_id") @db.Text
+  profileLastVerifiedAt          DateTime?               @map("profile_last_verified_at") @db.Timestamptz(6)
+  profileFreshnessClass          FreshnessClass          @default(STABLE) @map("profile_freshness_class")
+  profileStaleAfterSeconds       Int?                    @map("profile_stale_after_seconds")
+  createdAt                      DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                      DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  memberships                    BusinessUser[]
+  entityTypes                    BusinessEntityType[]
+  entities                       BusinessEntity[]
+  openingHours                   BusinessOpeningHour[]
+  rules                          BusinessRule[]
+  auditEvents                    AuditEvent[]
+  conversations                  Conversation[]
+  conversationMessages           ConversationMessage[]
+  whatsappConnections            WhatsAppConnection[]
+  customers                      Customer[]
+  whatsappMessages               WhatsAppMessage[]
+  leads                          Lead[]
+  leadEvidence                   LeadEvidence[]
+  followUps                      FollowUp[]
 
   @@map("businesses")
 }
@@ -283,15 +308,19 @@ model WhatsAppConnection {
 }
 
 model Customer {
-  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  businessId    String            @map("business_id") @db.Uuid
-  whatsappPhone String            @map("whatsapp_phone") @db.VarChar(100)
-  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  business      Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  messages      WhatsAppMessage[]
-  conversations Conversation[]
-  leads         Lead[]
+  id                          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId                  String            @map("business_id") @db.Uuid
+  whatsappPhone               String            @map("whatsapp_phone") @db.VarChar(100)
+  followUpConsentAt           DateTime?         @map("follow_up_consent_at") @db.Timestamptz(6)
+  followUpOptedOutAt          DateTime?         @map("follow_up_opted_out_at") @db.Timestamptz(6)
+  followUpConsentRecordedById String?           @map("follow_up_consent_recorded_by_id") @db.Uuid
+  createdAt                   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                   DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  business                    Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  messages                    WhatsAppMessage[]
+  conversations               Conversation[]
+  leads                       Lead[]
+  followUps                   FollowUp[]
 
   @@unique([businessId, id], map: "customers_business_id_id_unique")
   @@unique([businessId, whatsappPhone], map: "customers_business_id_whatsapp_phone_unique")
@@ -356,6 +385,7 @@ model Conversation {
   assignedBusinessUser   BusinessUser?              @relation("ConversationAssignment", fields: [businessId, assignedBusinessUserId], references: [businessId, id], onDelete: Restrict)
   messages               ConversationMessage[]
   leads                  Lead[]
+  followUps              FollowUp[]
 
   @@unique([businessId, id], map: "conversations_business_id_id_unique")
   @@unique([businessId, id, customerId], map: "conversations_business_id_customer_id_unique")
@@ -382,6 +412,7 @@ model ConversationMessage {
   sentByBusinessUser   BusinessUser?                 @relation("HumanMessageSender", fields: [businessId, sentByBusinessUserId], references: [businessId, id], onDelete: Restrict)
   whatsappMessage      WhatsAppMessage?
   leadEvidence         LeadEvidence[]
+  followUp             FollowUp?
 
   @@unique([businessId, id], map: "conversation_messages_business_id_id_unique")
   @@unique([businessId, conversationId, id], map: "conversation_messages_business_conversation_id_unique")
@@ -409,6 +440,7 @@ model Lead {
   customer         Customer         @relation(fields: [businessId, customerId], references: [businessId, id], onDelete: Restrict)
   conversation     Conversation     @relation(fields: [businessId, conversationId, customerId], references: [businessId, id, customerId], onDelete: Restrict)
   evidence         LeadEvidence[]
+  followUps        FollowUp[]
 
   @@unique([businessId, id], map: "leads_business_id_id_unique")
   @@unique([businessId, id, conversationId], map: "leads_business_id_conversation_id_unique")
@@ -416,6 +448,41 @@ model Lead {
   @@index([businessId, customerId, lastActivityAt(sort: Desc)], map: "leads_business_customer_activity_index")
   @@index([businessId, conversationId], map: "leads_business_conversation_index")
   @@map("leads")
+}
+
+model FollowUp {
+  id                    String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId            String               @map("business_id") @db.Uuid
+  leadId                String               @map("lead_id") @db.Uuid
+  conversationId        String               @map("conversation_id") @db.Uuid
+  customerId            String               @map("customer_id") @db.Uuid
+  conversationMessageId String?              @unique(map: "follow_ups_conversation_message_unique") @map("conversation_message_id") @db.Uuid
+  type                  FollowUpType         @default(INITIAL)
+  status                FollowUpStatus       @default(PENDING)
+  content               String               @db.Text
+  scheduledAt           DateTime             @map("scheduled_at") @db.Timestamptz(6)
+  customerActivityAt    DateTime             @map("customer_activity_at") @db.Timestamptz(6)
+  attemptCount          Int                  @default(0) @map("attempt_count")
+  lastAttemptAt         DateTime?            @map("last_attempt_at") @db.Timestamptz(6)
+  claimedAt             DateTime?            @map("claimed_at") @db.Timestamptz(6)
+  sentAt                DateTime?            @map("sent_at") @db.Timestamptz(6)
+  cancelledAt           DateTime?            @map("cancelled_at") @db.Timestamptz(6)
+  failedAt              DateTime?            @map("failed_at") @db.Timestamptz(6)
+  reasonCode            String?              @map("reason_code") @db.VarChar(80)
+  createdAt             DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  business              Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  lead                  Lead                 @relation(fields: [businessId, leadId, conversationId], references: [businessId, id, conversationId], onDelete: Cascade, map: "follow_ups_business_lead_conversation_fkey")
+  conversation          Conversation         @relation(fields: [businessId, conversationId, customerId], references: [businessId, id, customerId], onDelete: Cascade, map: "follow_ups_business_conversation_customer_fkey")
+  customer              Customer             @relation(fields: [businessId, customerId], references: [businessId, id], onDelete: Cascade, map: "follow_ups_business_customer_fkey")
+  conversationMessage   ConversationMessage? @relation(fields: [businessId, conversationId, conversationMessageId], references: [businessId, conversationId, id], onDelete: Restrict, map: "follow_ups_business_conversation_message_fkey")
+
+  @@unique([businessId, id], map: "follow_ups_business_id_id_unique")
+  @@unique([businessId, conversationId, conversationMessageId], map: "follow_ups_business_conversation_message_unique")
+  @@index([status, scheduledAt], map: "follow_ups_status_scheduled_at_index")
+  @@index([businessId, customerId, sentAt], map: "follow_ups_business_customer_sent_index")
+  @@index([businessId, leadId, createdAt], map: "follow_ups_business_lead_created_index")
+  @@map("follow_ups")
 }
 
 model LeadEvidence {

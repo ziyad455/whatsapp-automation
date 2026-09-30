@@ -17,6 +17,7 @@ import type {
   OpeningHour,
   LeadItem,
   LeadStatus,
+  FollowUpSettings,
 } from './types'
 
 const serverUrl = (import.meta.env.VITE_SERVER_URL ?? 'http://localhost:4111').replace(/\/$/, '')
@@ -123,6 +124,17 @@ export const dashboardApi = {
     apiRequest<{ lead: LeadItem }>(`/dashboard/leads/${leadId}/summary`, {
       method: 'POST',
       businessId,
+    }),
+  getFollowUpSettings: (businessId: string) =>
+    apiRequest<{ settings: FollowUpSettings }>('/dashboard/follow-up-settings', { businessId }),
+  updateFollowUpSettings: (businessId: string, settings: FollowUpSettings) =>
+    apiRequest<{ settings: FollowUpSettings }>('/dashboard/follow-up-settings', {
+      method: 'PUT', businessId, body: settings,
+    }),
+  recordFollowUpConsent: (businessId: string, leadId: string, consent: boolean) =>
+    apiRequest<{ customer: { id: string; followUpConsentAt: string | null;
+      followUpOptedOutAt: string | null } }>(`/dashboard/leads/${leadId}/follow-up-consent`, {
+      method: 'POST', businessId, body: { consent, staffAttestation: true },
     }),
   getAgentConversation: (businessId: string) =>
     apiRequest<{ conversation: AgentConversation | null }>('/dashboard/agent-chat', {
