@@ -7,6 +7,7 @@ import type {
 import { Prisma } from '../generated/prisma/client';
 import { prisma } from '../db/prisma';
 import type { TenantScope } from '../tenancy/tenant-context';
+import { isExplicitFollowUpOptOut } from '../follow-ups/follow-up-policy';
 import {
   pendingCustomerActionsSchema,
   type PendingCustomerAction,
@@ -168,6 +169,16 @@ export const createTenantConversationRepository = (tenant: TenantScope) => ({
   ) => {
     const createdAt = new Date();
     return prisma.$transaction(async transaction => {
+      if (input.senderType === 'CUSTOMER') {
+        const participant = await transaction.conversation.findFirst({
+          where: { id: conversationId, businessId: tenant.businessId },
+          select: { channel: true, customerId: true },
+        });
+        if (participant?.channel === 'WHATSAPP' && participant.customerId) {
+          await transaction.$queryRaw`SELECT 1::integer AS locked FROM pg_advisory_xact_lock(
+            hashtext(${tenant.businessId}), hashtext(${participant.customerId}))`;
+        }
+      }
       const conversation = await transaction.conversation.update({
         where: {
           businessId_id: {
@@ -182,7 +193,7 @@ export const createTenantConversationRepository = (tenant: TenantScope) => ({
             ? {}
             : { pendingActions: pendingActionsValue(input.pendingActions) }),
         },
-        select: { messageCount: true },
+        select: { messageCount: true, customerId: true, channel: true },
       });
       const message = await transaction.conversationMessage.create({
         data: {
@@ -198,6 +209,29 @@ export const createTenantConversationRepository = (tenant: TenantScope) => ({
           createdAt,
         },
       });
+
+      if (input.senderType === 'CUSTOMER') {
+        if (conversation.channel === 'WHATSAPP' && conversation.customerId &&
+          isExplicitFollowUpOptOut(input.content)) {
+          await transaction.customer.updateMany({
+            where: { businessId: tenant.businessId, id: conversation.customerId },
+            data: { followUpOptedOutAt: createdAt },
+          });
+        }
+        await transaction.followUp.updateMany({
+          where: {
+            businessId: tenant.businessId,
+            conversationId,
+            status: { in: ['PENDING', 'PROCESSING'] },
+          },
+          data: {
+            status: 'CANCELLED',
+            cancelledAt: createdAt,
+            reasonCode: isExplicitFollowUpOptOut(input.content)
+              ? 'CUSTOMER_OPTED_OUT' : 'CUSTOMER_REPLIED',
+          },
+        });
+      }
 
       if (input.whatsappMessageId) {
         const linked = await transaction.whatsAppMessage.updateMany({
@@ -253,6 +287,16 @@ export const createTenantConversationRepository = (tenant: TenantScope) => ({
         },
       });
       if (claimed.count !== 1) return null;
+
+      if (input.handoffReason) {
+        await transaction.followUp.updateMany({
+          where: { businessId: tenant.businessId,
+            conversationId: input.conversationId,
+            status: { in: ['PENDING', 'PROCESSING'] } },
+          data: { status: 'CANCELLED', cancelledAt: createdAt,
+            reasonCode: 'HUMAN_MODE' },
+        });
+      }
 
       const conversation = await transaction.conversation.findUniqueOrThrow({
         where: {

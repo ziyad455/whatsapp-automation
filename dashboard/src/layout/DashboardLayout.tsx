@@ -8,6 +8,7 @@ import { LoadingBlock, StatusMessage } from '../components/StatusMessage'
 const navigation = [
   { to: '/dashboard/conversations', label: 'Inbox' },
   { to: '/dashboard/leads', label: 'Leads' },
+  { to: '/dashboard/follow-ups', label: 'Follow-ups' },
   { to: '/dashboard/profile', label: 'Business profile' },
   { to: '/dashboard/hours', label: 'Opening hours' },
   { to: '/dashboard/rules', label: 'Business rules' },

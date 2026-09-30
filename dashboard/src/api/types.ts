@@ -29,6 +29,15 @@ export interface BusinessProfile {
   timezone: string
 }
 
+export interface FollowUpSettings {
+  followUpsEnabled: boolean
+  initialFollowUpDelayMinutes: number
+  followUpWindowStartMinutes: number
+  followUpWindowEndMinutes: number
+  maxFollowUpsPerLead: number
+  minimumFollowUpIntervalMinutes: number
+}
+
 export type BusinessWeekday =
   | 'MONDAY'
   | 'TUESDAY'
@@ -259,7 +268,18 @@ export interface LeadItem {
   statusUpdatedAt: string
   createdAt: string
   updatedAt: string
-  customer: ConversationCustomer
+  customer: ConversationCustomer & {
+    followUpConsentAt: string | null
+    followUpOptedOutAt: string | null
+  }
+  followUps: Array<{
+    id: string
+    status: 'PENDING' | 'PROCESSING' | 'SENDING' | 'SENT' | 'CANCELLED' | 'FAILED'
+    scheduledAt: string
+    sentAt: string | null
+    reasonCode: string | null
+    attemptCount: number
+  }>
   conversation: {
     id: string
     mode: ConversationMode
