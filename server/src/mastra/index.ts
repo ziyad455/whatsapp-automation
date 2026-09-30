@@ -20,6 +20,7 @@ import { leadSummaryWorker } from './agents/lead-summary-worker';
 import { startScheduleTool, stopScheduleTool } from './tools/schedule-tools';
 import { customerServiceBusinessTools } from './tools/business-information-tools';
 import { followUpWorkflow } from './workflows/follow-up-workflow';
+import { campaignWorkflow } from './workflows/campaign-workflow';
 
 const observabilityStorage = env.MASTRA_OBSERVABILITY_DATABASE_PATH
   ? new DuckDBStore({ path: env.MASTRA_OBSERVABILITY_DATABASE_PATH })
@@ -30,7 +31,7 @@ export const mastra = new Mastra({
     externals: ['@duckdb/node-bindings'],
   },
   agents: { customerServiceAgent, leadSummaryWorker },
-  workflows: { followUpWorkflow },
+  workflows: { followUpWorkflow, campaignWorkflow },
   tools: { startScheduleTool, stopScheduleTool, ...customerServiceBusinessTools },
   logger: applicationLogger,
   server: {

@@ -37,7 +37,7 @@ Conversation messages preserve bounded interaction context used by the applicati
 
 - **Lead** links the business, customer, and originating conversation. It stores lifecycle state, intent, optional summary/score, and evidence for qualification.
 - **FollowUp** links to a lead and conversation and records the durable schedule, content/type, attempt count, and PENDING, SENT, CANCELLED, or FAILED state.
-- **CustomerEvent** records completed or significant business outcomes such as a purchase, service, booking, or membership lifecycle event.
+- **CustomerLifecycleEvent** records completed business outcomes such as a purchase, service, booking, or membership lifecycle event. Events are factual, tenant-scoped records and may reference same-business leads, conversations, or business entities.
 - **Campaign** represents later previous-customer reactivation: segment definition, message/template, status, and outcomes.
 
 ## Key relationships

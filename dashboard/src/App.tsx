@@ -18,6 +18,8 @@ import { FollowUpSettingsPage } from './pages/FollowUpSettingsPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { OpeningHoursPage } from './pages/OpeningHoursPage'
 import { SchemaEditorPage } from './pages/SchemaEditorPage'
+import { CustomersPage } from './pages/CustomersPage'
+import { CampaignsPage } from './pages/CampaignsPage'
 
 function PublicLayout() {
   return (
@@ -55,6 +57,8 @@ function App() {
             <Route path="conversations/:conversationId" element={<ConversationDetailPage />} />
             <Route path="leads" element={<LeadDashboardPage />} />
             <Route path="follow-ups" element={<FollowUpSettingsPage />} />
+            <Route path="customers" element={<CustomersPage />} />
+            <Route path="campaigns" element={<CampaignsPage />} />
             {import.meta.env.DEV ? <Route path="ai-playground" element={<AiPlaygroundPage />} /> : null}
           </Route>
         </Route>

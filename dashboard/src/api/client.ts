@@ -18,6 +18,12 @@ import type {
   LeadItem,
   LeadStatus,
   FollowUpSettings,
+  CampaignPreview,
+  CampaignSummary,
+  CustomerHistory,
+  CustomerLifecycleEventType,
+  CustomerSummary,
+  ReactivationSegment,
 } from './types'
 
 const serverUrl = (import.meta.env.VITE_SERVER_URL ?? 'http://localhost:4111').replace(/\/$/, '')
@@ -136,6 +142,64 @@ export const dashboardApi = {
       followUpOptedOutAt: string | null } }>(`/dashboard/leads/${leadId}/follow-up-consent`, {
       method: 'POST', businessId, body: { consent, staffAttestation: true },
     }),
+  listCustomers: (businessId: string) =>
+    apiRequest<{ customers: CustomerSummary[] }>('/dashboard/customers', { businessId }),
+  getCustomerHistory: (businessId: string, customerId: string) =>
+    apiRequest<{ customer: CustomerHistory }>(
+      `/dashboard/customers/${customerId}/history`,
+      { businessId },
+    ),
+  createCustomerLifecycleEvent: (
+    businessId: string,
+    customerId: string,
+    input: { type: CustomerLifecycleEventType; occurredAt: string; metadata?: Record<string, string> },
+  ) => apiRequest<{ event: CustomerHistory['lifecycleEvents'][number] }>(
+    `/dashboard/customers/${customerId}/lifecycle-events`,
+    { method: 'POST', businessId, body: input },
+  ),
+  recordMarketingPreference: (
+    businessId: string,
+    customerId: string,
+    consent: boolean,
+    evidence?: string,
+  ) => apiRequest<{ customer: CustomerSummary }>(
+    `/dashboard/customers/${customerId}/marketing-preference`,
+    {
+      method: 'POST',
+      businessId,
+      body: { consent, staffAttestation: true, ...(evidence ? { evidence } : {}) },
+    },
+  ),
+  listCampaigns: (businessId: string) =>
+    apiRequest<{ campaigns: CampaignSummary[] }>('/dashboard/campaigns', { businessId }),
+  createCampaign: (businessId: string, input: {
+    name: string
+    segmentDefinition: ReactivationSegment
+    templateName: string
+    templateLanguage: string
+    templateBody: string
+    templateParameters: string[]
+  }) => apiRequest<{ campaign: CampaignSummary }>('/dashboard/campaigns', {
+    method: 'POST', businessId, body: input,
+  }),
+  previewCampaign: (businessId: string, campaignId: string) =>
+    apiRequest<{ preview: CampaignPreview }>(`/dashboard/campaigns/${campaignId}/preview`, {
+      method: 'POST', businessId,
+    }),
+  prepareCampaign: (businessId: string, campaignId: string) =>
+    apiRequest<{ prepare: CampaignPreview }>(`/dashboard/campaigns/${campaignId}/prepare`, {
+      method: 'POST', businessId,
+    }),
+  launchCampaign: (businessId: string, campaignId: string) =>
+    apiRequest<{ launch: { campaignId: string; status: 'SENDING'; pending: number } }>(
+      `/dashboard/campaigns/${campaignId}/launch`,
+      { method: 'POST', businessId },
+    ),
+  cancelCampaign: (businessId: string, campaignId: string) =>
+    apiRequest<{ cancel: { campaignId: string; status: 'CANCELLED' } }>(
+      `/dashboard/campaigns/${campaignId}/cancel`,
+      { method: 'POST', businessId },
+    ),
   getAgentConversation: (businessId: string) =>
     apiRequest<{ conversation: AgentConversation | null }>('/dashboard/agent-chat', {
       businessId,

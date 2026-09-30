@@ -17,6 +17,8 @@ import {
 import {
   WhatsAppSendError,
   type WhatsAppSendResult,
+  type WhatsAppTemplateReference,
+  type WhatsAppTemplateTransport,
   type WhatsAppTextTransport,
 } from './whatsapp-send.types';
 import type { WhatsAppTenantContext } from './whatsapp-tenant-context';
@@ -36,6 +38,22 @@ export interface SendWhatsAppTextInput {
 
 export interface PersistedWhatsAppSendResult extends WhatsAppSendResult {
   readonly transportMessageId: string;
+}
+
+export interface SendWhatsAppTemplateInput {
+  readonly tenant: WhatsAppTenantContext;
+  readonly to: string;
+  readonly template: WhatsAppTemplateReference;
+  readonly reservedTransportMessageId: string;
+}
+
+export interface WhatsAppTemplateSendDependencies {
+  readonly findConnection?: WhatsAppSendServiceDependencies['findConnection'];
+  readonly transport?: WhatsAppTemplateTransport;
+  readonly logger?: WhatsAppSendLogger;
+  readonly findPendingMessage?: typeof findPendingOutgoingWhatsAppMessage;
+  readonly markMessageSent?: typeof markOutgoingWhatsAppMessageSent;
+  readonly markMessageFailed?: typeof markOutgoingWhatsAppMessageFailed;
 }
 
 export interface WhatsAppSendServiceDependencies {
@@ -170,4 +188,77 @@ export const sendWhatsAppText = async (
     externalMessageId: result.externalMessageId,
   });
   return { ...result, transportMessageId: pendingMessage.id };
+};
+
+export const sendWhatsAppTemplate = async (
+  input: SendWhatsAppTemplateInput,
+  dependencies: WhatsAppTemplateSendDependencies = {},
+): Promise<PersistedWhatsAppSendResult> => {
+  const findConnection = dependencies.findConnection ?? findActiveWhatsAppConnectionForTenant;
+  const logger = dependencies.logger ?? applicationLogger;
+  const connection = await findConnection(input.tenant);
+  if (!connection) {
+    throw new WhatsAppSendError({
+      code: 'CONNECTION_UNAVAILABLE',
+      message: 'The tenant has no active WhatsApp connection for this request.',
+      retryable: false,
+    });
+  }
+
+  const pendingMessage = await (
+    dependencies.findPendingMessage ?? findPendingOutgoingWhatsAppMessage
+  )(input.tenant, input.reservedTransportMessageId, input.to);
+  if (!pendingMessage) {
+    throw new WhatsAppSendError({
+      code: 'INVALID_REQUEST',
+      message: 'The reserved WhatsApp message is unavailable for sending.',
+      retryable: false,
+    });
+  }
+
+  try {
+    const transport = dependencies.transport ?? createMetaWhatsAppTransport();
+    const result = await transport.sendTemplate({
+      phoneNumberId: connection.phoneNumberId,
+      to: input.to,
+      template: input.template,
+    });
+    await (dependencies.markMessageSent ?? markOutgoingWhatsAppMessageSent)(
+      input.tenant,
+      pendingMessage.id,
+      result.externalMessageId,
+    );
+    logger.info('WhatsApp template accepted by provider', {
+      businessId: connection.businessId,
+      connectionId: connection.id,
+      messageId: pendingMessage.id,
+      externalMessageId: result.externalMessageId,
+    });
+    return { ...result, transportMessageId: pendingMessage.id };
+  } catch (error) {
+    const failure = error instanceof WhatsAppSendError ? {
+      code: error.code,
+      title: error.message,
+      ...(error.providerStatus === undefined
+        ? {}
+        : { details: `Meta HTTP status ${error.providerStatus}` }),
+    } : {
+      code: 'UNEXPECTED_TRANSPORT_ERROR',
+      title: 'The WhatsApp transport failed unexpectedly.',
+    };
+    try {
+      await (dependencies.markMessageFailed ?? markOutgoingWhatsAppMessageFailed)(
+        input.tenant,
+        pendingMessage.id,
+        failure,
+      );
+    } catch {
+      logger.warn('WhatsApp template failure state could not be persisted', {
+        businessId: connection.businessId,
+        connectionId: connection.id,
+        messageId: pendingMessage.id,
+      });
+    }
+    throw error;
+  }
 };

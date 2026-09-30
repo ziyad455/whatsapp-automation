@@ -215,7 +215,19 @@ export const createTenantConversationRepository = (tenant: TenantScope) => ({
           isExplicitFollowUpOptOut(input.content)) {
           await transaction.customer.updateMany({
             where: { businessId: tenant.businessId, id: conversation.customerId },
-            data: { followUpOptedOutAt: createdAt },
+            data: {
+              followUpOptedOutAt: createdAt,
+              marketingOptedOutAt: createdAt,
+              marketingOptOutSource: 'CUSTOMER',
+            },
+          });
+          await transaction.campaignRecipient.updateMany({
+            where: {
+              businessId: tenant.businessId,
+              customerId: conversation.customerId,
+              status: 'PENDING',
+            },
+            data: { status: 'SKIPPED', exclusionReasonCode: 'OPTED_OUT' },
           });
         }
         await transaction.followUp.updateMany({
