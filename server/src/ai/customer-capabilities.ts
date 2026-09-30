@@ -178,10 +178,10 @@ export const createPendingActionClarification = (
 ): AgentResult => {
   const labels = actions.map(action => actionLabel(action, language));
   const reply = ({
-    en: `Sure — do you mean ${labels[0]} or ${labels[1]}?`, fr: `Bien sûr — vous voulez dire ${labels[0]} ou ${labels[1]} ?`,
-    ar: `بالتأكيد، هل تقصد ${labels[0]} أم ${labels[1]}؟`, 'darija-arabic': `واخا، قصدك ${labels[0]} ولا ${labels[1]}؟`,
+    en: `Do you mean ${labels[0]} or ${labels[1]}?`, fr: `Vous voulez dire ${labels[0]} ou ${labels[1]} ?`,
+    ar: `هل تقصد ${labels[0]} أم ${labels[1]}؟`, 'darija-arabic': `واخا، قصدك ${labels[0]} ولا ${labels[1]}؟`,
     'darija-latin': `Wakha, kat9sed ${labels[0]} wla ${labels[1]}?`, mixed: `Wakha, vous voulez dire ${labels[0]} wla ${labels[1]}?`,
-    other: `Sure — do you mean ${labels[0]} or ${labels[1]}?`,
+    other: `Do you mean ${labels[0]} or ${labels[1]}?`,
   })[language];
   return agentResultSchema.parse({ reply, needsHuman: false, detectedIntent: 'BUSINESS_INFORMATION', reasonCode: 'CLARIFICATION_NEEDED', detectedLanguage: language });
 };
