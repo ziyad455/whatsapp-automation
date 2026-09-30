@@ -109,6 +109,10 @@ for (const test of languageCases) {
     const result = await runCustomerServiceAgent({ tenant, message: test.message }, { createProvider: () => provider });
     assert(test.languages.includes(result.detectedLanguage));
     if (['ar', 'darija-arabic'].includes(result.detectedLanguage)) assert(/[\u0600-\u06ff]/u.test(result.reply));
+    if (test.name === 'French') {
+      assert.match(result.reply, /lundi/iu);
+      assert.doesNotMatch(result.reply, /mardi|mercredi|jeudi|vendredi|samedi|dimanche/iu);
+    }
     return result;
   });
 }

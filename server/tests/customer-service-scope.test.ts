@@ -7,6 +7,7 @@ import { analyzeCustomerMessage } from '../src/ai/customer-message-analysis';
 import { classifyCustomerScope } from '../src/ai/customer-scope';
 import { businessEntitySearchOutputSchema, searchBusinessEntities } from '../src/mastra/tools/business-information-tools';
 import { fakeMetadata, fakeProvider, fakeTenant } from './helpers/ai-fixtures';
+import { evaluateReplyStyle } from './helpers/reply-style';
 
 describe('customer-service scope boundary', () => {
   it.each(outOfScopeEvaluationCases)('$id bypasses generation and returns a natural scoped response', async testCase => {
@@ -26,6 +27,7 @@ describe('customer-service scope boundary', () => {
     });
     expect(detailed.result.reply).toContain('Atlas Cars');
     expect(detailed.result.reply.length).toBeLessThan(260);
+    expect(evaluateReplyStyle(detailed.result.reply)).toEqual([]);
     for (const forbidden of testCase.forbiddenReplyTerms) {
       expect(detailed.result.reply.toLocaleLowerCase()).not.toContain(forbidden.toLocaleLowerCase());
     }

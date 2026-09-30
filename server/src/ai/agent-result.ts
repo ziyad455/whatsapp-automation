@@ -30,8 +30,24 @@ export const agentResultSchema = z.object({
 
 export type AgentResult = z.infer<typeof agentResultSchema>;
 
+const unfinishedEnding = /(?:[,:;—-]|\b(?:and|or|but|if|because|just|et|ou|mais|si))\s*$/iu;
+
+const removeUnfinishedEnding = (value: string): string => {
+  const trimmed = value.trim();
+  if (!unfinishedEnding.test(trimmed)) return trimmed;
+
+  const boundaries = [...trimmed.matchAll(/[.!?؟](?=\s|$)/gu)];
+  const lastBoundary = boundaries.at(-1);
+  if (lastBoundary?.index !== undefined && lastBoundary.index < trimmed.length - 1) {
+    return trimmed.slice(0, lastBoundary.index + lastBoundary[0].length).trim();
+  }
+  return trimmed.replace(unfinishedEnding, '').trim();
+};
+
 export const normalizeAgentReply = (value: unknown): string => {
-  const reply = z.string().parse(value).trim();
+  const reply = removeUnfinishedEnding(z.string().parse(value))
+    .replace(/\s*—\s*/gu, ', ')
+    .trim();
   if (!reply) throw new Error('The model did not produce a customer-facing reply.');
   if (reply.length <= 4000) return reply;
 
