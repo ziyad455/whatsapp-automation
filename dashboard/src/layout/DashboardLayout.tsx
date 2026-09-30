@@ -9,6 +9,8 @@ const navigation = [
   { to: '/dashboard/conversations', label: 'Inbox' },
   { to: '/dashboard/leads', label: 'Leads' },
   { to: '/dashboard/follow-ups', label: 'Follow-ups' },
+  { to: '/dashboard/customers', label: 'Customers' },
+  { to: '/dashboard/campaigns', label: 'Reactivation' },
   { to: '/dashboard/profile', label: 'Business profile' },
   { to: '/dashboard/hours', label: 'Opening hours' },
   { to: '/dashboard/rules', label: 'Business rules' },

@@ -12,6 +12,7 @@ import { conversationDashboardRoutes } from './conversation-dashboard-routes';
 import { leadDashboardRoutes } from './lead-dashboard-routes';
 import { followUpRoutes } from './follow-up-routes';
 import { whatsappWebhookRoutes } from './whatsapp-webhook-routes';
+import { reactivationRoutes } from './reactivation-routes';
 
 export const applicationRoutes = [
   registerApiRoute('/auth/api/*', {
@@ -75,6 +76,7 @@ export const applicationRoutes = [
   ...conversationDashboardRoutes,
   ...leadDashboardRoutes,
   ...followUpRoutes,
+  ...reactivationRoutes,
   ...aiPlaygroundRoutes,
   ...sprintFourRoutes,
 ];

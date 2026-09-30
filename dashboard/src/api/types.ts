@@ -38,6 +38,96 @@ export interface FollowUpSettings {
   minimumFollowUpIntervalMinutes: number
 }
 
+export type CustomerLifecycleEventType =
+  | 'BOOKING_COMPLETED'
+  | 'PURCHASE_COMPLETED'
+  | 'MEMBERSHIP_STARTED'
+  | 'MEMBERSHIP_EXPIRED'
+  | 'SERVICE_COMPLETED'
+
+export interface CustomerSummary {
+  id: string
+  whatsappPhone: string
+  marketingConsentAt: string | null
+  marketingConsentSource: 'STAFF' | 'CUSTOMER' | 'PROVIDER' | null
+  marketingOptedOutAt: string | null
+  marketingOptOutSource: 'STAFF' | 'CUSTOMER' | 'PROVIDER' | null
+  _count: { lifecycleEvents: number }
+}
+
+export interface CustomerLifecycleEvent {
+  id: string
+  type: CustomerLifecycleEventType
+  occurredAt: string
+  metadata: Record<string, string | number | boolean | null>
+  relatedLead: { id: string; status: LeadStatus } | null
+  relatedConversation: { id: string } | null
+  relatedEntity: { id: string; name: string } | null
+}
+
+export interface CustomerHistory extends Omit<CustomerSummary, '_count'> {
+  lifecycleEvents: CustomerLifecycleEvent[]
+}
+
+export type ReactivationSegment =
+  | { kind: 'PRIOR_LIFECYCLE'; eventTypes: CustomerLifecycleEventType[] }
+  | { kind: 'INACTIVE'; minimumInactiveDays: number; eventTypes?: CustomerLifecycleEventType[] }
+  | { kind: 'MEMBERSHIP_EXPIRING'; withinDays: number }
+  | { kind: 'MEMBERSHIP_EXPIRED' }
+  | { kind: 'SERVICE_DUE'; minimumDays: number; maximumDays?: number }
+
+export type CampaignStatus =
+  | 'DRAFT'
+  | 'READY'
+  | 'SENDING'
+  | 'COMPLETED'
+  | 'CANCELLED'
+  | 'FAILED'
+
+export interface CampaignMetrics {
+  recipients: number
+  sent: number
+  delivered: number
+  read: number
+  replied: number
+  failed: number
+  converted: number
+}
+
+export interface CampaignSummary {
+  id: string
+  name: string
+  status: CampaignStatus
+  templateName: string
+  templateLanguage: string
+  templateStatus: 'UNVERIFIED' | 'APPROVED' | 'REJECTED'
+  createdAt: string
+  metrics: CampaignMetrics
+}
+
+export interface CampaignPreviewRecipient {
+  customerId: string
+  whatsappPhone: string
+  matchedReasons: string[]
+  eligibility: string
+}
+
+export interface CampaignPreview {
+  campaignId: string
+  finalMessage: string
+  template: {
+    name: string
+    language: string
+    parameters: string[]
+    status: 'UNVERIFIED' | 'APPROVED' | 'REJECTED'
+    category: string | null
+  }
+  matchedCount: number
+  eligibleCount: number
+  recipients: CampaignPreviewRecipient[]
+  warnings: string[]
+}
+
 export type BusinessWeekday =
   | 'MONDAY'
   | 'TUESDAY'

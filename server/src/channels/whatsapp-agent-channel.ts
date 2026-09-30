@@ -21,6 +21,7 @@ import {
   type LeadCaptureResult,
 } from '../leads/tenant-lead.service';
 import type { ResolvedInboundMessage } from '../whatsapp/process-inbound-webhook';
+import { attributeCampaignReply } from '../reactivation/customer-lifecycle.service';
 import {
   markInboundWhatsAppMessageFailed,
   markInboundWhatsAppMessageProcessed,
@@ -59,6 +60,7 @@ export interface WhatsAppAgentChannelDependencies {
   readonly captureLead?: typeof captureLeadFromCustomerMessage;
   readonly refreshLeadSummary?: typeof refreshPersistedLeadSummary;
   readonly scheduleFollowUp?: typeof scheduleFollowUpForLead;
+  readonly attributeCampaignReply?: typeof attributeCampaignReply;
 }
 
 export const handleWhatsAppAgentMessage = async (
@@ -101,6 +103,21 @@ export const handleWhatsAppAgentMessage = async (
       content: input.message.content.text,
       whatsappMessageId: input.inboxMessageId,
     });
+    const attributeReply = dependencies.attributeCampaignReply ??
+      (dependencies.createRepository ? null : attributeCampaignReply);
+    try {
+      if (attributeReply) await attributeReply(
+        tenant,
+        input.customer.id,
+        customerMessage.createdAt,
+      );
+    } catch (error) {
+      applicationLogger.warn('Campaign reply attribution failed without interrupting WhatsApp processing', {
+        businessId: tenant.businessId,
+        conversationId: conversation.id,
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+      });
+    }
     const currentConversation = await repository.findById(conversation.id);
     if (!currentConversation) {
       throw new Error('The WhatsApp customer conversation could not be reloaded.');

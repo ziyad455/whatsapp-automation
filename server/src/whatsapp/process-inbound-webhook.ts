@@ -17,6 +17,7 @@ import {
 } from './whatsapp-message.repository';
 import { resolveWhatsAppTenant, type WhatsAppTenantContext } from './whatsapp-tenant-context';
 import { verifyMetaWebhookSignature } from './webhook-signature';
+import { syncCampaignRecipientTransportStatus } from '../reactivation/campaign-worker';
 
 export type WhatsAppWebhookRejection = {
   readonly accepted: false;
@@ -74,6 +75,7 @@ export interface WhatsAppWebhookProcessorDependencies {
     tenant: WhatsAppTenantContext,
     event: WhatsAppMessageStatusEvent,
   ) => Promise<WhatsAppStatusUpdateOutcome>;
+  readonly syncCampaignStatus?: typeof syncCampaignRecipientTransportStatus;
 }
 
 const parseJson = (rawBody: Uint8Array): unknown => {
@@ -168,10 +170,21 @@ export const processInboundWhatsAppWebhook = async (
       });
       continue;
     }
+    const outcome = await applyStatusEvent(tenant, event);
+    const syncCampaignStatus = dependencies.syncCampaignStatus ??
+      (dependencies.applyStatusEvent ? null : syncCampaignRecipientTransportStatus);
+    if (outcome.outcome === 'APPLIED' && syncCampaignStatus) {
+      await syncCampaignStatus(
+        tenant,
+        event.externalMessageId,
+        event.status,
+        event.timestamp,
+      );
+    }
     resolvedStatusEvents.push({
       event,
       tenant,
-      outcome: await applyStatusEvent(tenant, event),
+      outcome,
     });
   }
 

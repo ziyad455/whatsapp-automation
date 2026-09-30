@@ -246,31 +246,78 @@ enum FollowUpType {
   @@map("follow_up_type")
 }
 
+enum CustomerLifecycleEventType {
+  BOOKING_COMPLETED
+  PURCHASE_COMPLETED
+  MEMBERSHIP_STARTED
+  MEMBERSHIP_EXPIRED
+  SERVICE_COMPLETED
+
+  @@map("customer_lifecycle_event_type")
+}
+
+enum CustomerPreferenceSource {
+  STAFF
+  CUSTOMER
+  PROVIDER
+
+  @@map("customer_preference_source")
+}
+
+enum CampaignStatus {
+  DRAFT
+  READY
+  SENDING
+  COMPLETED
+  CANCELLED
+  FAILED
+
+  @@map("campaign_status")
+}
+
+enum CampaignRecipientStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+  SKIPPED
+
+  @@map("campaign_recipient_status")
+}
+
+enum CampaignTemplateStatus {
+  UNVERIFIED
+  APPROVED
+  REJECTED
+
+  @@map("campaign_template_status")
+}
+
 model Business {
-  id                             String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                           String                  @db.Text
-  category                       String                  @db.Text
-  description                    String?                 @db.Text
-  phone                          String?                 @db.Text
-  address                        String?                 @db.Text
-  timezone                       String                  @db.Text
-  followUpsEnabled               Boolean                 @default(false) @map("follow_ups_enabled")
-  initialFollowUpDelayMinutes    Int                     @default(60) @map("initial_follow_up_delay_minutes")
-  followUpWindowStartMinutes     Int                     @default(540) @map("follow_up_window_start_minutes")
-  followUpWindowEndMinutes       Int                     @default(1200) @map("follow_up_window_end_minutes")
-  maxFollowUpsPerLead            Int                     @default(1) @map("max_follow_ups_per_lead")
-  minimumFollowUpIntervalMinutes Int                     @default(1440) @map("minimum_follow_up_interval_minutes")
-  currency                       String                  @db.VarChar(3)
-  defaultLanguage                String                  @map("default_language") @db.Text
-  supportedLanguages             String[]                @default([]) @map("supported_languages")
-  lifecycleStatus                BusinessLifecycleStatus @map("lifecycle_status")
-  profileSource                  DataSource              @default(MANUAL) @map("profile_source")
-  profileExternalId              String?                 @map("profile_external_id") @db.Text
-  profileLastVerifiedAt          DateTime?               @map("profile_last_verified_at") @db.Timestamptz(6)
-  profileFreshnessClass          FreshnessClass          @default(STABLE) @map("profile_freshness_class")
-  profileStaleAfterSeconds       Int?                    @map("profile_stale_after_seconds")
-  createdAt                      DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                      DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                             String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                           String                   @db.Text
+  category                       String                   @db.Text
+  description                    String?                  @db.Text
+  phone                          String?                  @db.Text
+  address                        String?                  @db.Text
+  timezone                       String                   @db.Text
+  followUpsEnabled               Boolean                  @default(false) @map("follow_ups_enabled")
+  initialFollowUpDelayMinutes    Int                      @default(60) @map("initial_follow_up_delay_minutes")
+  followUpWindowStartMinutes     Int                      @default(540) @map("follow_up_window_start_minutes")
+  followUpWindowEndMinutes       Int                      @default(1200) @map("follow_up_window_end_minutes")
+  maxFollowUpsPerLead            Int                      @default(1) @map("max_follow_ups_per_lead")
+  minimumFollowUpIntervalMinutes Int                      @default(1440) @map("minimum_follow_up_interval_minutes")
+  currency                       String                   @db.VarChar(3)
+  defaultLanguage                String                   @map("default_language") @db.Text
+  supportedLanguages             String[]                 @default([]) @map("supported_languages")
+  lifecycleStatus                BusinessLifecycleStatus  @map("lifecycle_status")
+  profileSource                  DataSource               @default(MANUAL) @map("profile_source")
+  profileExternalId              String?                  @map("profile_external_id") @db.Text
+  profileLastVerifiedAt          DateTime?                @map("profile_last_verified_at") @db.Timestamptz(6)
+  profileFreshnessClass          FreshnessClass           @default(STABLE) @map("profile_freshness_class")
+  profileStaleAfterSeconds       Int?                     @map("profile_stale_after_seconds")
+  createdAt                      DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                      DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   memberships                    BusinessUser[]
   entityTypes                    BusinessEntityType[]
   entities                       BusinessEntity[]
@@ -285,6 +332,9 @@ model Business {
   leads                          Lead[]
   leadEvidence                   LeadEvidence[]
   followUps                      FollowUp[]
+  customerLifecycleEvents        CustomerLifecycleEvent[]
+  campaigns                      Campaign[]
+  campaignRecipients             CampaignRecipient[]
 
   @@map("businesses")
 }
@@ -308,19 +358,26 @@ model WhatsAppConnection {
 }
 
 model Customer {
-  id                          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  businessId                  String            @map("business_id") @db.Uuid
-  whatsappPhone               String            @map("whatsapp_phone") @db.VarChar(100)
-  followUpConsentAt           DateTime?         @map("follow_up_consent_at") @db.Timestamptz(6)
-  followUpOptedOutAt          DateTime?         @map("follow_up_opted_out_at") @db.Timestamptz(6)
-  followUpConsentRecordedById String?           @map("follow_up_consent_recorded_by_id") @db.Uuid
-  createdAt                   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                   DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  business                    Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  id                          String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId                  String                    @map("business_id") @db.Uuid
+  whatsappPhone               String                    @map("whatsapp_phone") @db.VarChar(100)
+  followUpConsentAt           DateTime?                 @map("follow_up_consent_at") @db.Timestamptz(6)
+  followUpOptedOutAt          DateTime?                 @map("follow_up_opted_out_at") @db.Timestamptz(6)
+  followUpConsentRecordedById String?                   @map("follow_up_consent_recorded_by_id") @db.Uuid
+  marketingConsentAt          DateTime?                 @map("marketing_consent_at") @db.Timestamptz(6)
+  marketingConsentSource      CustomerPreferenceSource? @map("marketing_consent_source")
+  marketingConsentEvidence    String?                   @map("marketing_consent_evidence") @db.Text
+  marketingOptedOutAt         DateTime?                 @map("marketing_opted_out_at") @db.Timestamptz(6)
+  marketingOptOutSource       CustomerPreferenceSource? @map("marketing_opt_out_source")
+  createdAt                   DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                   DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  business                    Business                  @relation(fields: [businessId], references: [id], onDelete: Cascade)
   messages                    WhatsAppMessage[]
   conversations               Conversation[]
   leads                       Lead[]
   followUps                   FollowUp[]
+  lifecycleEvents             CustomerLifecycleEvent[]
+  campaignRecipients          CampaignRecipient[]
 
   @@unique([businessId, id], map: "customers_business_id_id_unique")
   @@unique([businessId, whatsappPhone], map: "customers_business_id_whatsapp_phone_unique")
@@ -386,6 +443,7 @@ model Conversation {
   messages               ConversationMessage[]
   leads                  Lead[]
   followUps              FollowUp[]
+  lifecycleEvents        CustomerLifecycleEvent[]
 
   @@unique([businessId, id], map: "conversations_business_id_id_unique")
   @@unique([businessId, id, customerId], map: "conversations_business_id_customer_id_unique")
@@ -413,6 +471,7 @@ model ConversationMessage {
   whatsappMessage      WhatsAppMessage?
   leadEvidence         LeadEvidence[]
   followUp             FollowUp?
+  campaignRecipient    CampaignRecipient?
 
   @@unique([businessId, id], map: "conversation_messages_business_id_id_unique")
   @@unique([businessId, conversationId, id], map: "conversation_messages_business_conversation_id_unique")
@@ -422,25 +481,26 @@ model ConversationMessage {
 }
 
 model Lead {
-  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  businessId       String           @map("business_id") @db.Uuid
-  customerId       String           @map("customer_id") @db.Uuid
-  conversationId   String           @map("conversation_id") @db.Uuid
-  status           LeadStatus       @default(NEW)
+  id               String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId       String                   @map("business_id") @db.Uuid
+  customerId       String                   @map("customer_id") @db.Uuid
+  conversationId   String                   @map("conversation_id") @db.Uuid
+  status           LeadStatus               @default(NEW)
   intent           LeadIntent
-  statusSource     LeadStatusSource @default(AUTOMATIC) @map("status_source")
-  summary          String?          @db.Text
-  summaryDetails   Json?            @map("summary_details") @db.JsonB
-  summaryUpdatedAt DateTime?        @map("summary_updated_at") @db.Timestamptz(6)
-  statusUpdatedAt  DateTime         @default(now()) @map("status_updated_at") @db.Timestamptz(6)
-  lastActivityAt   DateTime         @default(now()) @map("last_activity_at") @db.Timestamptz(6)
-  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  business         Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  customer         Customer         @relation(fields: [businessId, customerId], references: [businessId, id], onDelete: Restrict)
-  conversation     Conversation     @relation(fields: [businessId, conversationId, customerId], references: [businessId, id, customerId], onDelete: Restrict)
+  statusSource     LeadStatusSource         @default(AUTOMATIC) @map("status_source")
+  summary          String?                  @db.Text
+  summaryDetails   Json?                    @map("summary_details") @db.JsonB
+  summaryUpdatedAt DateTime?                @map("summary_updated_at") @db.Timestamptz(6)
+  statusUpdatedAt  DateTime                 @default(now()) @map("status_updated_at") @db.Timestamptz(6)
+  lastActivityAt   DateTime                 @default(now()) @map("last_activity_at") @db.Timestamptz(6)
+  createdAt        DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  business         Business                 @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer         Customer                 @relation(fields: [businessId, customerId], references: [businessId, id], onDelete: Restrict)
+  conversation     Conversation             @relation(fields: [businessId, conversationId, customerId], references: [businessId, id, customerId], onDelete: Restrict)
   evidence         LeadEvidence[]
   followUps        FollowUp[]
+  lifecycleEvents  CustomerLifecycleEvent[]
 
   @@unique([businessId, id], map: "leads_business_id_id_unique")
   @@unique([businessId, id, conversationId], map: "leads_business_id_conversation_id_unique")
@@ -483,6 +543,97 @@ model FollowUp {
   @@index([businessId, customerId, sentAt], map: "follow_ups_business_customer_sent_index")
   @@index([businessId, leadId, createdAt], map: "follow_ups_business_lead_created_index")
   @@map("follow_ups")
+}
+
+model CustomerLifecycleEvent {
+  id                    String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId            String                     @map("business_id") @db.Uuid
+  customerId            String                     @map("customer_id") @db.Uuid
+  type                  CustomerLifecycleEventType
+  occurredAt            DateTime                   @map("occurred_at") @db.Timestamptz(6)
+  relatedLeadId         String?                    @map("related_lead_id") @db.Uuid
+  relatedConversationId String?                    @map("related_conversation_id") @db.Uuid
+  relatedEntityId       String?                    @map("related_entity_id") @db.Uuid
+  metadata              Json                       @default("{}") @db.JsonB
+  createdAt             DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  business              Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer              Customer                   @relation(fields: [businessId, customerId], references: [businessId, id], onDelete: Cascade)
+  relatedLead           Lead?                      @relation(fields: [businessId, relatedLeadId], references: [businessId, id], onDelete: Restrict)
+  relatedConversation   Conversation?              @relation(fields: [businessId, relatedConversationId], references: [businessId, id], onDelete: Restrict)
+  relatedEntity         BusinessEntity?            @relation(fields: [businessId, relatedEntityId], references: [businessId, id], onDelete: Restrict)
+  attributedRecipients  CampaignRecipient[]        @relation("CampaignRecipientConversion")
+
+  @@unique([businessId, id], map: "customer_lifecycle_events_business_id_id_unique")
+  @@index([businessId, customerId, occurredAt(sort: Desc)], map: "customer_lifecycle_events_business_customer_occurred_index")
+  @@index([businessId, type, occurredAt(sort: Desc)], map: "customer_lifecycle_events_business_type_occurred_index")
+  @@map("customer_lifecycle_events")
+}
+
+model Campaign {
+  id                 String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId         String                 @map("business_id") @db.Uuid
+  name               String                 @db.Text
+  segmentDefinition  Json                   @map("segment_definition") @db.JsonB
+  templateName       String                 @map("template_name") @db.VarChar(512)
+  templateLanguage   String                 @map("template_language") @db.VarChar(35)
+  templateBody       String                 @map("template_body") @db.Text
+  templateParameters Json                   @default("[]") @map("template_parameters") @db.JsonB
+  templateStatus     CampaignTemplateStatus @default(UNVERIFIED) @map("template_status")
+  templateCategory   String?                @map("template_category") @db.VarChar(50)
+  templateVerifiedAt DateTime?              @map("template_verified_at") @db.Timestamptz(6)
+  status             CampaignStatus         @default(DRAFT)
+  approvedAt         DateTime?              @map("approved_at") @db.Timestamptz(6)
+  launchedAt         DateTime?              @map("launched_at") @db.Timestamptz(6)
+  completedAt        DateTime?              @map("completed_at") @db.Timestamptz(6)
+  cancelledAt        DateTime?              @map("cancelled_at") @db.Timestamptz(6)
+  failedAt           DateTime?              @map("failed_at") @db.Timestamptz(6)
+  failureReasonCode  String?                @map("failure_reason_code") @db.VarChar(80)
+  createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  business           Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  recipients         CampaignRecipient[]
+
+  @@unique([businessId, id], map: "campaigns_business_id_id_unique")
+  @@index([businessId, status, createdAt(sort: Desc)], map: "campaigns_business_status_created_index")
+  @@map("campaigns")
+}
+
+model CampaignRecipient {
+  id                         String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId                 String                  @map("business_id") @db.Uuid
+  campaignId                 String                  @map("campaign_id") @db.Uuid
+  customerId                 String                  @map("customer_id") @db.Uuid
+  conversationMessageId      String?                 @map("conversation_message_id") @db.Uuid
+  conversionLifecycleEventId String?                 @map("conversion_lifecycle_event_id") @db.Uuid
+  status                     CampaignRecipientStatus @default(PENDING)
+  matchedReasons             String[]                @default([]) @map("matched_reasons")
+  renderedMessage            String                  @map("rendered_message") @db.Text
+  exclusionReasonCode        String?                 @map("exclusion_reason_code") @db.VarChar(80)
+  failureReasonCode          String?                 @map("failure_reason_code") @db.VarChar(80)
+  attemptCount               Int                     @default(0) @map("attempt_count")
+  selectedAt                 DateTime                @default(now()) @map("selected_at") @db.Timestamptz(6)
+  claimedAt                  DateTime?               @map("claimed_at") @db.Timestamptz(6)
+  sentAt                     DateTime?               @map("sent_at") @db.Timestamptz(6)
+  deliveredAt                DateTime?               @map("delivered_at") @db.Timestamptz(6)
+  readAt                     DateTime?               @map("read_at") @db.Timestamptz(6)
+  repliedAt                  DateTime?               @map("replied_at") @db.Timestamptz(6)
+  convertedAt                DateTime?               @map("converted_at") @db.Timestamptz(6)
+  failedAt                   DateTime?               @map("failed_at") @db.Timestamptz(6)
+  createdAt                  DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                  DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  business                   Business                @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  campaign                   Campaign                @relation(fields: [businessId, campaignId], references: [businessId, id], onDelete: Cascade)
+  customer                   Customer                @relation(fields: [businessId, customerId], references: [businessId, id], onDelete: Cascade)
+  conversationMessage        ConversationMessage?    @relation(fields: [businessId, conversationMessageId], references: [businessId, id], onDelete: Restrict)
+  conversionLifecycleEvent   CustomerLifecycleEvent? @relation("CampaignRecipientConversion", fields: [businessId, conversionLifecycleEventId], references: [businessId, id], onDelete: Restrict)
+
+  @@unique([businessId, id], map: "campaign_recipients_business_id_id_unique")
+  @@unique([businessId, campaignId, customerId], map: "campaign_recipients_business_campaign_customer_unique")
+  @@unique([businessId, conversationMessageId], map: "campaign_recipients_business_conversation_message_unique")
+  @@index([status, claimedAt], map: "campaign_recipients_status_claimed_index")
+  @@index([businessId, customerId, sentAt(sort: Desc)], map: "campaign_recipients_business_customer_sent_index")
+  @@index([businessId, campaignId, status], map: "campaign_recipients_business_campaign_status_index")
+  @@map("campaign_recipients")
 }
 
 model LeadEvidence {
@@ -663,20 +814,22 @@ model BusinessFieldDefinition {
 }
 
 model BusinessEntity {
-  id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  businessId     String               @map("business_id") @db.Uuid
-  entityTypeId   String               @map("entity_type_id") @db.Uuid
-  name           String               @db.Text
-  data           Json                 @db.JsonB
-  status         BusinessEntityStatus @default(ACTIVE)
-  source         DataSource           @default(MANUAL)
-  externalId     String?              @map("external_id") @db.Text
-  lastVerifiedAt DateTime?            @map("last_verified_at") @db.Timestamptz(6)
-  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  business       Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  entityType     BusinessEntityType   @relation(fields: [businessId, entityTypeId], references: [businessId, id], onDelete: Cascade)
+  id              String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId      String                   @map("business_id") @db.Uuid
+  entityTypeId    String                   @map("entity_type_id") @db.Uuid
+  name            String                   @db.Text
+  data            Json                     @db.JsonB
+  status          BusinessEntityStatus     @default(ACTIVE)
+  source          DataSource               @default(MANUAL)
+  externalId      String?                  @map("external_id") @db.Text
+  lastVerifiedAt  DateTime?                @map("last_verified_at") @db.Timestamptz(6)
+  createdAt       DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  business        Business                 @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  entityType      BusinessEntityType       @relation(fields: [businessId, entityTypeId], references: [businessId, id], onDelete: Cascade)
+  lifecycleEvents CustomerLifecycleEvent[]
 
+  @@unique([businessId, id], map: "business_entities_business_id_id_unique")
   @@index([entityTypeId], map: "business_entities_entity_type_id_index")
   @@index([businessId, entityTypeId, status], map: "business_entities_business_id_entity_type_id_status_index")
   @@index([data(ops: JsonbPathOps)], type: Gin, map: "business_entities_data_gin_index")

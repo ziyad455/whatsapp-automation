@@ -54,3 +54,19 @@ export interface WhatsAppTextTransport {
     readonly text: string;
   }): Promise<WhatsAppSendResult>;
 }
+
+export interface WhatsAppTemplateReference {
+  readonly name: string;
+  readonly languageCode: string;
+  readonly bodyParameters: readonly string[];
+}
+
+export interface WhatsAppTemplateTransport {
+  sendTemplate(input: {
+    readonly phoneNumberId: string;
+    readonly to: string;
+    readonly template: WhatsAppTemplateReference;
+  }): Promise<WhatsAppSendResult>;
+}
+
+export type WhatsAppTransport = WhatsAppTextTransport & WhatsAppTemplateTransport;

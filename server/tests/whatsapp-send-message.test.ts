@@ -60,6 +60,47 @@ describe('Meta WhatsApp text transport', () => {
     expect(JSON.stringify(result)).not.toContain(accessToken);
   });
 
+  it('sends an approved template reference with positional body parameters', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(response(200, {
+      messages: [{ id: 'wamid.template-1' }],
+    }));
+    const transport = createMetaWhatsAppTransport({
+      accessToken,
+      apiVersion,
+      fetch: fetchMock as typeof fetch,
+    });
+
+    await transport.sendTemplate({
+      phoneNumberId: '111111111111111',
+      to: '212600000001',
+      template: {
+        name: 'customer_return_offer',
+        languageCode: 'en',
+        bodyParameters: ['Atlas Cars'],
+      },
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://graph.facebook.com/v25.0/111111111111111/messages',
+      expect.objectContaining({
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: '212600000001',
+          type: 'template',
+          template: {
+            name: 'customer_return_offer',
+            language: { code: 'en' },
+            components: [{
+              type: 'body',
+              parameters: [{ type: 'text', text: 'Atlas Cars' }],
+            }],
+          },
+        }),
+      }),
+    );
+  });
+
   it.each([
     [400, 'INVALID_REQUEST', false],
     [401, 'AUTHENTICATION', false],
