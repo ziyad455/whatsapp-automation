@@ -6,6 +6,8 @@ import { useBusiness } from '../business/business-context'
 import { LoadingBlock, StatusMessage } from '../components/StatusMessage'
 
 const navigation = [
+  { to: '/dashboard', label: 'Overview', end: true },
+  { to: '/dashboard/attention', label: 'Needs attention' },
   { to: '/dashboard/conversations', label: 'Inbox' },
   { to: '/dashboard/leads', label: 'Leads' },
   { to: '/dashboard/follow-ups', label: 'Follow-ups' },
@@ -51,7 +53,7 @@ function DashboardFrame() {
         <nav className="dashboard-nav" aria-label="Dashboard navigation">
           <p className="dashboard-nav__label">Configure</p>
           {navigation.map((item) => (
-            <NavLink key={item.to} to={item.to}>
+            <NavLink end={item.end} key={item.to} to={item.to}>
               {item.label}
             </NavLink>
           ))}

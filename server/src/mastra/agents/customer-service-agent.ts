@@ -8,13 +8,15 @@ export { customerServiceTenantContextSchema, customerServiceRequestContextSchema
 export { CUSTOMER_SERVICE_AGENT_INSTRUCTIONS } from '../../ai/business-instructions';
 
 export const CUSTOMER_SERVICE_AGENT_ID = 'customer-service' as const;
+export const CUSTOMER_SERVICE_PROVIDER = 'openrouter' as const;
+export const CUSTOMER_SERVICE_MODEL = 'openrouter/openrouter/free' as const;
 
 export const customerServiceAgent = new Agent({
   id: CUSTOMER_SERVICE_AGENT_ID,
   name: 'Customer Service',
   description: 'Shared tenant-safe customer-service agent for all businesses.',
   instructions: CUSTOMER_SERVICE_AGENT_INSTRUCTIONS,
-  model: 'openrouter/openrouter/free',
+  model: CUSTOMER_SERVICE_MODEL,
   requestContextSchema: customerServiceRequestContextSchema,
   tools: { ...customerServiceBusinessTools, ...customerServiceControlTools },
 });

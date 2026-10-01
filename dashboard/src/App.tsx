@@ -20,6 +20,8 @@ import { OpeningHoursPage } from './pages/OpeningHoursPage'
 import { SchemaEditorPage } from './pages/SchemaEditorPage'
 import { CustomersPage } from './pages/CustomersPage'
 import { CampaignsPage } from './pages/CampaignsPage'
+import { DashboardPage } from './pages/DashboardPage'
+import { AttentionQueuePage } from './pages/AttentionQueuePage'
 
 function PublicLayout() {
   return (
@@ -42,7 +44,8 @@ function App() {
         </Route>
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<DashboardLayout />}>
-            <Route index element={<Navigate to="profile" replace />} />
+            <Route index element={<DashboardPage />} />
+            <Route path="attention" element={<AttentionQueuePage />} />
             <Route path="profile" element={<BusinessProfilePage />} />
             <Route path="hours" element={<OpeningHoursPage />} />
             <Route path="rules" element={<BusinessRulesPage />} />

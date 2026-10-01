@@ -45,6 +45,7 @@ const conversationFor = (
   controlVersion: 0,
   pendingActions: [],
   messageCount: 0,
+  attentionSince: null,
   lastActivityAt: new Date(),
   createdAt: new Date(),
   updatedAt: new Date(),

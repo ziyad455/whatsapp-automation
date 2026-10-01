@@ -293,6 +293,20 @@ enum CampaignTemplateStatus {
   @@map("campaign_template_status")
 }
 
+enum AiUsageOperation {
+  CUSTOMER_SERVICE
+  LEAD_SUMMARY
+
+  @@map("ai_usage_operation")
+}
+
+enum AiUsageStatus {
+  SUCCESS
+  FAILED
+
+  @@map("ai_usage_status")
+}
+
 model Business {
   id                             String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                           String                   @db.Text
@@ -335,6 +349,7 @@ model Business {
   customerLifecycleEvents        CustomerLifecycleEvent[]
   campaigns                      Campaign[]
   campaignRecipients             CampaignRecipient[]
+  aiUsageRecords                 AiUsageRecord[]
 
   @@map("businesses")
 }
@@ -430,6 +445,7 @@ model Conversation {
   status                 ConversationStatus         @default(OPEN)
   assignedBusinessUserId String?                    @map("assigned_business_user_id") @db.Uuid
   handoffReason          ConversationHandoffReason? @map("handoff_reason")
+  attentionSince         DateTime?                  @map("attention_since") @db.Timestamptz(6)
   controlVersion         Int                        @default(0) @map("control_version")
   pendingActions         Json                       @default("[]") @map("pending_actions") @db.JsonB
   messageCount           Int                        @default(0) @map("message_count")
@@ -444,6 +460,7 @@ model Conversation {
   leads                  Lead[]
   followUps              FollowUp[]
   lifecycleEvents        CustomerLifecycleEvent[]
+  aiUsageRecords         AiUsageRecord[]
 
   @@unique([businessId, id], map: "conversations_business_id_id_unique")
   @@unique([businessId, id, customerId], map: "conversations_business_id_customer_id_unique")
@@ -451,6 +468,7 @@ model Conversation {
   @@unique([businessId, channel, customerId], map: "conversations_business_channel_customer_unique")
   @@index([businessId, lastActivityAt(sort: Desc)], map: "conversations_business_last_activity_index")
   @@index([businessId, mode, status, lastActivityAt(sort: Desc)], map: "conversations_business_mode_status_activity_index")
+  @@index([businessId, mode, status, attentionSince], map: "conversations_business_attention_index")
   @@index([businessId, assignedBusinessUserId, lastActivityAt(sort: Desc)], map: "conversations_business_assignment_activity_index")
   @@map("conversations")
 }
@@ -477,6 +495,7 @@ model ConversationMessage {
   @@unique([businessId, conversationId, id], map: "conversation_messages_business_conversation_id_unique")
   @@unique([businessId, conversationId, sequence], map: "conversation_messages_business_conversation_sequence_unique")
   @@index([businessId, conversationId, createdAt], map: "conversation_messages_business_conversation_created_index")
+  @@index([businessId, createdAt(sort: Desc)], map: "conversation_messages_business_created_index")
   @@map("conversation_messages")
 }
 
@@ -501,10 +520,12 @@ model Lead {
   evidence         LeadEvidence[]
   followUps        FollowUp[]
   lifecycleEvents  CustomerLifecycleEvent[]
+  aiUsageRecords   AiUsageRecord[]
 
   @@unique([businessId, id], map: "leads_business_id_id_unique")
   @@unique([businessId, id, conversationId], map: "leads_business_id_conversation_id_unique")
   @@index([businessId, status, lastActivityAt(sort: Desc)], map: "leads_business_status_activity_index")
+  @@index([businessId, createdAt(sort: Desc)], map: "leads_business_created_index")
   @@index([businessId, customerId, lastActivityAt(sort: Desc)], map: "leads_business_customer_activity_index")
   @@index([businessId, conversationId], map: "leads_business_conversation_index")
   @@map("leads")
@@ -540,6 +561,7 @@ model FollowUp {
   @@unique([businessId, id], map: "follow_ups_business_id_id_unique")
   @@unique([businessId, conversationId, conversationMessageId], map: "follow_ups_business_conversation_message_unique")
   @@index([status, scheduledAt], map: "follow_ups_status_scheduled_at_index")
+  @@index([businessId, status, scheduledAt], map: "follow_ups_business_status_scheduled_index")
   @@index([businessId, customerId, sentAt], map: "follow_ups_business_customer_sent_index")
   @@index([businessId, leadId, createdAt], map: "follow_ups_business_lead_created_index")
   @@map("follow_ups")
@@ -652,6 +674,33 @@ model LeadEvidence {
   @@index([businessId, leadId, createdAt], map: "lead_evidence_business_lead_created_index")
   @@index([businessId, conversationId, messageId], map: "lead_evidence_business_conversation_message_index")
   @@map("lead_evidence")
+}
+
+model AiUsageRecord {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId       String           @map("business_id") @db.Uuid
+  conversationId   String?          @map("conversation_id") @db.Uuid
+  leadId           String?          @map("lead_id") @db.Uuid
+  operation        AiUsageOperation
+  provider         String           @db.VarChar(80)
+  model            String           @db.Text
+  status           AiUsageStatus
+  inputTokens      Int?             @map("input_tokens")
+  outputTokens     Int?             @map("output_tokens")
+  totalTokens      Int?             @map("total_tokens")
+  estimatedCostUsd Decimal?         @map("estimated_cost_usd") @db.Decimal(18, 8)
+  currency         String?          @db.VarChar(3)
+  durationMs       Int              @map("duration_ms")
+  errorCode        String?          @map("error_code") @db.VarChar(100)
+  occurredAt       DateTime         @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  business         Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  conversation     Conversation?    @relation(fields: [businessId, conversationId], references: [businessId, id], onDelete: Restrict)
+  lead             Lead?            @relation(fields: [businessId, leadId], references: [businessId, id], onDelete: Restrict)
+
+  @@index([businessId, occurredAt(sort: Desc)], map: "ai_usage_records_business_occurred_index")
+  @@index([businessId, operation, occurredAt(sort: Desc)], map: "ai_usage_records_business_operation_occurred_index")
+  @@index([businessId, model, occurredAt(sort: Desc)], map: "ai_usage_records_business_model_occurred_index")
+  @@map("ai_usage_records")
 }
 
 model BusinessOpeningHour {
@@ -851,6 +900,7 @@ model AuditEvent {
   actorUser   User?           @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([businessId, createdAt], map: "audit_events_business_id_created_at_index")
+  @@index([businessId, targetType, action, createdAt(sort: Desc)], map: "audit_events_business_target_action_created_index")
   @@index([businessId, targetType, targetId, createdAt], map: "audit_events_business_target_created_at_index")
   @@map("audit_events")
 }
