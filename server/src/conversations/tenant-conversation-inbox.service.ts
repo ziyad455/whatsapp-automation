@@ -160,7 +160,17 @@ export const createTenantConversationInboxService = (tenant: TenantContext) => (
         channel: 'WHATSAPP',
       },
       include: {
-        customer: { select: { id: true, whatsappPhone: true } },
+        customer: {
+          select: {
+            id: true,
+            whatsappPhone: true,
+            lifecycleEvents: {
+              orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
+              take: 3,
+              select: { id: true, type: true, occurredAt: true },
+            },
+          },
+        },
         assignedBusinessUser: {
           select: {
             id: true,
@@ -190,6 +200,11 @@ export const createTenantConversationInboxService = (tenant: TenantContext) => (
       lastActivityAt: conversation.lastActivityAt.toISOString(),
       createdAt: conversation.createdAt.toISOString(),
       messages: conversation.messages.map(messageDto),
+      recentOutcomes: conversation.customer.lifecycleEvents.map(event => ({
+        id: event.id,
+        type: event.type,
+        occurredAt: event.occurredAt.toISOString(),
+      })),
     };
   },
 
@@ -199,11 +214,13 @@ export const createTenantConversationInboxService = (tenant: TenantContext) => (
           mode,
           assignedBusinessUserId: tenant.membershipId,
           handoffReason: 'MANUAL' as const,
+          attentionSince: new Date(),
         }
       : {
           mode,
           assignedBusinessUserId: null,
           handoffReason: null,
+          attentionSince: null,
         };
 
     const changed = await prisma.$transaction(async transaction => {

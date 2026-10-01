@@ -167,6 +167,14 @@ export function ConversationDetailPage() {
         <div><span>Status</span><strong>{formatLabel(conversation.status)}</strong></div>
       </section>
 
+      <section className="customer-context" aria-labelledby="customer-context-title">
+        <div className="section-heading"><div><h2 id="customer-context-title">Recent customer outcomes</h2><p>Verified lifecycle events for this customer</p></div></div>
+        {conversation.recentOutcomes.length === 0 ? <p className="empty-list">No customer outcomes have been recorded.</p> :
+          <div className="plain-operations-list">{conversation.recentOutcomes.map(outcome => <div key={outcome.id}>
+            <strong>{formatLabel(outcome.type)}</strong><time dateTime={outcome.occurredAt}>{formatTime(outcome.occurredAt)}</time>
+          </div>)}</div>}
+      </section>
+
       <section className="conversation-thread" aria-label="Message history">
         <div className="conversation-thread__messages" role="log">
           {conversation.messages.length === 0 ? (

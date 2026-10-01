@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { dashboardApi, getErrorMessage } from '../api/client'
-import type { FollowUpSettings } from '../api/types'
+import type { FollowUpQueueFilter, FollowUpQueueItem, FollowUpSettings } from '../api/types'
 import { useBusiness } from '../business/business-context'
 import { PageHeader } from '../components/PageHeader'
 import { LoadingBlock, StatusMessage } from '../components/StatusMessage'
@@ -11,6 +12,11 @@ const fromTime = (time: string) => {
   const [hours = 0, minutes = 0] = time.split(':').map(Number)
   return hours * 60 + minutes
 }
+const queueFilters: FollowUpQueueFilter[] = ['DUE', 'PENDING', 'FAILED', 'RECENT']
+const formatDateTime = (value: string) => new Intl.DateTimeFormat(undefined, {
+  dateStyle: 'medium', timeStyle: 'short',
+}).format(new Date(value))
+const formatPhone = (phone: string) => phone.startsWith('+') ? phone : `+${phone}`
 
 export function FollowUpSettingsPage() {
   const { selectedBusiness } = useBusiness()
@@ -18,6 +24,9 @@ export function FollowUpSettingsPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [queueFilter, setQueueFilter] = useState<FollowUpQueueFilter>('DUE')
+  const [queue, setQueue] = useState<FollowUpQueueItem[] | null>(null)
+  const [queueError, setQueueError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!selectedBusiness) return
@@ -27,6 +36,15 @@ export function FollowUpSettingsPage() {
       .catch((reason: unknown) => { if (active) setError(getErrorMessage(reason)) })
     return () => { active = false }
   }, [selectedBusiness])
+
+  useEffect(() => {
+    if (!selectedBusiness) return
+    let active = true
+    dashboardApi.getFollowUpQueue(selectedBusiness.id, queueFilter)
+      .then(({ followUps }) => { if (active) setQueue(followUps) })
+      .catch((reason: unknown) => { if (active) setQueueError(getErrorMessage(reason)) })
+    return () => { active = false }
+  }, [queueFilter, selectedBusiness])
 
   function change<Key extends keyof FollowUpSettings>(key: Key, value: FollowUpSettings[Key]) {
     setSettings(current => current ? { ...current, [key]: value } : current)
@@ -52,6 +70,25 @@ export function FollowUpSettingsPage() {
   return <div className="page-stack">
     <PageHeader eyebrow="Business settings" title="Follow-ups"
       description="Control when opted-in customers may receive a single, timely reminder about an active request." />
+    <section className="operations-panel">
+      <div className="section-heading"><div><h2>Operational queue</h2><p>Review scheduled, due, failed, and recent follow-ups.</p></div></div>
+      <div className="lead-filters" aria-label="Follow-up queue filters">
+        {queueFilters.map(filter => <button className={`lead-filter${queueFilter === filter ? ' lead-filter--active' : ''}`}
+          key={filter} onClick={() => {
+            setQueue(null)
+            setQueueError(null)
+            setQueueFilter(filter)
+          }} type="button">{filter.toLowerCase()}</button>)}
+      </div>
+      {!queue && !queueError ? <LoadingBlock label="Loading follow-up queue…" /> : null}
+      {queueError ? <StatusMessage tone="error">{queueError}</StatusMessage> : null}
+      {queue?.length === 0 ? <p className="empty-list">No follow-ups match this view.</p> : null}
+      {queue && queue.length > 0 ? <div className="follow-up-queue">{queue.map(item => <article key={item.id}>
+        <div><strong>{formatPhone(item.customer.whatsappPhone)}</strong><span className={`queue-status queue-status--${item.status.toLowerCase()}`}>{item.status.toLowerCase()}</span></div>
+        <p>{item.lead.summary ?? 'Lead summary is not available yet.'}</p>
+        <div className="follow-up-queue__meta"><time dateTime={item.scheduledAt}>Scheduled {formatDateTime(item.scheduledAt)}</time><span>{item.type.toLowerCase()} follow-up</span><span>{item.attemptCount} attempts</span>{item.reasonCode ? <span>{item.reasonCode.toLowerCase().replaceAll('_', ' ')}</span> : null}<Link className="text-link" to={`/dashboard/conversations/${item.conversation.id}`}>Open conversation</Link></div>
+      </article>)}</div> : null}
+    </section>
     {!settings && !error ? <LoadingBlock label="Loading follow-up settings…" /> : null}
     {settings ? <form className="settings-form" onSubmit={save}>
       <section className="settings-section">

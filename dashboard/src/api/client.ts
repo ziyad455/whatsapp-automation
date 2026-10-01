@@ -24,6 +24,13 @@ import type {
   CustomerLifecycleEventType,
   CustomerSummary,
   ReactivationSegment,
+  AttentionConversation,
+  CampaignPerformance,
+  ConversationAnalytics,
+  DashboardOverview,
+  FollowUpQueueFilter,
+  FollowUpQueueItem,
+  ReportingRange,
 } from './types'
 
 const serverUrl = (import.meta.env.VITE_SERVER_URL ?? 'http://localhost:4111').replace(/\/$/, '')
@@ -88,6 +95,29 @@ async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Pro
 
 export const dashboardApi = {
   listBusinesses: () => apiRequest<{ businesses: BusinessSummary[] }>('/businesses'),
+  getAnalyticsOverview: (businessId: string, range: ReportingRange) =>
+    apiRequest<{ overview: DashboardOverview }>(
+      `/dashboard/analytics/overview?range=${range}`,
+      { businessId },
+    ),
+  getAttentionQueue: (businessId: string) =>
+    apiRequest<{ conversations: AttentionConversation[] }>('/dashboard/analytics/attention', {
+      businessId,
+    }),
+  getFollowUpQueue: (businessId: string, filter: FollowUpQueueFilter) =>
+    apiRequest<{ followUps: FollowUpQueueItem[] }>(
+      `/dashboard/analytics/follow-ups?filter=${filter}`,
+      { businessId },
+    ),
+  getCampaignPerformance: (businessId: string) =>
+    apiRequest<{ campaigns: CampaignPerformance[] }>('/dashboard/analytics/campaigns', {
+      businessId,
+    }),
+  getConversationAnalytics: (businessId: string, range: ReportingRange) =>
+    apiRequest<{ analytics: ConversationAnalytics }>(
+      `/dashboard/analytics/conversations?range=${range}`,
+      { businessId },
+    ),
   listConversations: (businessId: string) =>
     apiRequest<{ conversations: ConversationInboxItem[] }>('/dashboard/conversations', {
       businessId,

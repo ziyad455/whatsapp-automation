@@ -1,6 +1,13 @@
 import { z } from 'zod';
 import { TENANT_CONTEXT_KEY } from '../tenancy/tenant-context';
-import { leadSummaryWorker } from '../mastra/agents/lead-summary-worker';
+import type { TenantScope } from '../tenancy/tenant-context';
+import {
+  LEAD_SUMMARY_MODEL,
+  LEAD_SUMMARY_PROVIDER,
+  leadSummaryWorker,
+} from '../mastra/agents/lead-summary-worker';
+import { RequestContext } from '@mastra/core/request-context';
+import { recordAiUsageSafely } from '../analytics/ai-usage.service';
 
 export const leadSummarySchema = z.object({
   summary: z.string().trim().min(1).max(500),
@@ -44,7 +51,15 @@ export const leadSummaryInputSchema = z.object({
 }).strict();
 
 export type LeadSummaryInput = z.infer<typeof leadSummaryInputSchema>;
-export type LeadSummaryExecutor = (input: LeadSummaryInput) => Promise<unknown>;
+export interface LeadSummaryExecutionContext {
+  readonly tenant: TenantScope;
+  readonly leadId: string;
+  readonly conversationId: string;
+}
+export type LeadSummaryExecutor = (
+  input: LeadSummaryInput,
+  context?: LeadSummaryExecutionContext,
+) => Promise<unknown>;
 
 const IMPORTANT_EVIDENCE_TYPES = [
   'ITEM_OR_SERVICE',
@@ -135,36 +150,70 @@ const assertConcreteFactsAreGrounded = (
   }
 };
 
-export const executeLeadSummaryWorker: LeadSummaryExecutor = async input => {
-  const result = await leadSummaryWorker.generate([
-    {
-      role: 'user',
-      content: `Summarize this authorized lead evidence as structured staff-facing data:\n${JSON.stringify(input)}`,
-    },
-  ], {
-    structuredOutput: {
-      schema: leadSummarySchema,
-      errorStrategy: 'strict',
-      jsonPromptInjection: 'auto',
-    },
-    maxSteps: 1,
-    abortSignal: AbortSignal.timeout(30_000),
-    modelSettings: { maxOutputTokens: 700 },
-    tracingOptions: {
-      requestContextKeys: [`${TENANT_CONTEXT_KEY}.businessId`],
-      hideInput: true,
-      hideOutput: true,
-    },
-  });
-  return result.object;
+export const executeLeadSummaryWorker: LeadSummaryExecutor = async (input, context) => {
+  if (!context) throw new Error('Lead summary execution requires trusted tenant context.');
+  const requestContext = new RequestContext([[TENANT_CONTEXT_KEY, context.tenant]]);
+  const startedAt = Date.now();
+  try {
+    const result = await leadSummaryWorker.generate([
+      {
+        role: 'user',
+        content: `Summarize this authorized lead evidence as structured staff-facing data:\n${JSON.stringify(input)}`,
+      },
+    ], {
+      requestContext,
+      structuredOutput: {
+        schema: leadSummarySchema,
+        errorStrategy: 'strict',
+        jsonPromptInjection: 'auto',
+      },
+      maxSteps: 1,
+      abortSignal: AbortSignal.timeout(30_000),
+      modelSettings: { maxOutputTokens: 700 },
+      tracingOptions: {
+        requestContextKeys: [`${TENANT_CONTEXT_KEY}.businessId`],
+        hideInput: true,
+        hideOutput: true,
+      },
+    });
+    await recordAiUsageSafely({
+      tenant: context.tenant,
+      leadId: context.leadId,
+      conversationId: context.conversationId,
+      operation: 'LEAD_SUMMARY',
+      provider: LEAD_SUMMARY_PROVIDER,
+      model: result.response.modelId || LEAD_SUMMARY_MODEL,
+      status: 'SUCCESS',
+      usage: result.usage,
+      durationMs: Date.now() - startedAt,
+    });
+    return result.object;
+  } catch (error) {
+    await recordAiUsageSafely({
+      tenant: context.tenant,
+      leadId: context.leadId,
+      conversationId: context.conversationId,
+      operation: 'LEAD_SUMMARY',
+      provider: LEAD_SUMMARY_PROVIDER,
+      model: LEAD_SUMMARY_MODEL,
+      status: 'FAILED',
+      durationMs: Date.now() - startedAt,
+      errorCode: error instanceof Error ? error.name : 'UnknownError',
+    });
+    throw error;
+  }
 };
 
 export const runLeadSummaryWorker = async (
   input: LeadSummaryInput,
   executor: LeadSummaryExecutor = executeLeadSummaryWorker,
+  context?: LeadSummaryExecutionContext,
 ): Promise<LeadSummary> => {
   const trustedInput = leadSummaryInputSchema.parse(input);
-  const summary = leadSummarySchema.parse(await executor(trustedInput));
+  const output = context
+    ? await executor(trustedInput, context)
+    : await executor(trustedInput);
+  const summary = leadSummarySchema.parse(output);
   assertConcreteFactsAreGrounded(summary, trustedInput);
   return summary;
 };

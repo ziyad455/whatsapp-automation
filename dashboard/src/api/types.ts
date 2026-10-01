@@ -320,6 +320,100 @@ export interface ConversationInboxItem {
 export interface ConversationDetail extends Omit<ConversationInboxItem, 'latestMessage'> {
   createdAt: string
   messages: ConversationMessage[]
+  recentOutcomes: Array<{
+    id: string
+    type: CustomerLifecycleEventType
+    occurredAt: string
+  }>
+}
+
+export type ReportingRange = 'TODAY' | 'LAST_7_DAYS' | 'LAST_30_DAYS'
+export type FollowUpQueueFilter = 'DUE' | 'PENDING' | 'FAILED' | 'RECENT'
+
+export interface AnalyticsRange {
+  key: ReportingRange
+  timeZone: string
+  localStartDate: string
+  start: string
+  end: string
+}
+
+export interface AttentionConversation {
+  id: string
+  customer: ConversationCustomer
+  latestMessage: Pick<ConversationMessage, 'content' | 'senderType' | 'createdAt'> | null
+  handoffReason: ConversationHandoffReason | null
+  waitingSince: string
+  lastActivityAt: string
+  assignment: Pick<ConversationAssignment, 'membershipId' | 'name' | 'email'> | null
+}
+
+export interface DashboardOverview {
+  range: AnalyticsRange
+  summary: {
+    conversations: number
+    newLeads: number
+    needsAttention: number
+    followUpsDue: number
+    campaignConversions: number
+  }
+  leads: {
+    statuses: Record<LeadStatus, number>
+    active: number
+    recent: Array<{
+      id: string
+      status: LeadStatus
+      intent: LeadIntent
+      summary: string | null
+      createdAt: string
+      lastActivityAt: string
+      customer: Pick<ConversationCustomer, 'whatsappPhone'>
+      conversationId: string
+    }>
+  }
+  attention: AttentionConversation[]
+  followUps: { pending: number; due: number; failed: number }
+  outcomes: Array<{
+    id: string
+    type: CustomerLifecycleEventType
+    occurredAt: string
+    customer: Pick<ConversationCustomer, 'whatsappPhone'>
+  }>
+}
+
+export interface FollowUpQueueItem {
+  id: string
+  type: string
+  status: 'DUE' | 'PENDING' | 'PROCESSING' | 'SENDING' | 'SENT' | 'CANCELLED' | 'FAILED'
+  scheduledAt: string
+  attemptCount: number
+  reasonCode: string | null
+  lastAttemptAt: string | null
+  customer: ConversationCustomer
+  lead: { id: string; status: LeadStatus; summary: string | null }
+  conversation: { id: string; mode: ConversationMode }
+}
+
+export interface CampaignPerformance {
+  id: string
+  name: string
+  status: CampaignStatus
+  createdAt: string
+  launchedAt: string | null
+  metrics: CampaignMetrics
+  rates: { delivery: number | null; reply: number | null; conversion: number | null }
+}
+
+export interface ConversationAnalytics {
+  range: AnalyticsRange
+  conversationsWithCustomerMessages: number
+  conversationsWithAiResponses: number
+  conversationsWithHumanResponses: number
+  conversationsRequiringHandoff: number
+  fullyAiHandled: number
+  handoffRate: number | null
+  firstResponseTimeSeconds: { median: number | null; average: number | null; sampleSize: number }
+  humanResponseTimeSeconds: { median: number | null; average: number | null; sampleSize: number }
 }
 
 export type LeadStatus = 'NEW' | 'INTERESTED' | 'QUALIFIED' | 'WON' | 'LOST'

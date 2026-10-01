@@ -294,6 +294,7 @@ export const createTenantConversationRepository = (tenant: TenantScope) => ({
                 mode: 'HUMAN' as const,
                 handoffReason: input.handoffReason,
                 assignedBusinessUserId: null,
+                attentionSince: createdAt,
               }
             : {}),
         },
@@ -447,6 +448,7 @@ export const createTenantConversationRepository = (tenant: TenantScope) => ({
           mode: 'HUMAN',
           handoffReason: 'LOW_CONFIDENCE',
           assignedBusinessUserId: null,
+          attentionSince: new Date(),
           pendingActions: pendingActionsValue([]),
           controlVersion: { increment: 1 },
         },

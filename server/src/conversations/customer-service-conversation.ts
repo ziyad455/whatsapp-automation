@@ -81,6 +81,7 @@ export const generateCustomerServiceReply = async (
   const runtime = dependencies.runCustomerService ?? runCustomerServiceAgentWithDiagnostics;
   const runtimeOutput = await runtime({
     tenant: input.tenant,
+    conversationId: input.conversation.id,
     message: customerInput.content,
     history,
     pendingActions: pendingCustomerActionsSchema.parse(

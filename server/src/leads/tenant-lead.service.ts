@@ -274,7 +274,11 @@ export const refreshLeadSummary = async (
   } satisfies Parameters<typeof runLeadSummaryWorker>[0];
   let summary: LeadSummary;
   try {
-    summary = await runLeadSummaryWorker(summaryInput, executor);
+    summary = await runLeadSummaryWorker(summaryInput, executor, {
+      tenant,
+      leadId: lead.id,
+      conversationId: lead.conversationId,
+    });
   } catch (error) {
     if (lead.summary !== null) throw error;
     summary = buildProvisionalLeadSummary(summaryInput);

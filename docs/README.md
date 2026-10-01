@@ -29,6 +29,7 @@ Before implementing a task, read only the documents relevant to that task plus t
 | Leads | [Leads](automation/leads.md), [data model](data/data-model.md), [human handoff](ai/human-handoff.md) |
 | Follow-ups | [Follow-ups](automation/follow-ups.md), [leads](automation/leads.md), [error handling](engineering/error-handling.md), [message lifecycle](whatsapp/message-lifecycle.md) |
 | Customer reactivation | [Customer reactivation](automation/customer-reactivation.md), [data model](data/data-model.md), [WhatsApp architecture](whatsapp/whatsapp-architecture.md) |
+| Operating analytics | [Operating analytics](analytics/operating-analytics.md), [dashboard architecture](frontend/dashboard-architecture.md), [multi-tenancy](architecture/multi-tenancy.md) |
 | Dashboard feature | [Dashboard architecture](frontend/dashboard-architecture.md) plus the relevant domain document |
 | Server feature | [Server architecture](backend/server-architecture.md), [request flows](architecture/request-flows.md), plus the relevant domain document |
 | Security, failure, or production hardening | [Security principles](engineering/security-principles.md), [error handling](engineering/error-handling.md), [testing strategy](engineering/testing-strategy.md) |
@@ -59,6 +60,7 @@ For example:
 - ai/ — the shared agent, request context, tenant-bound tools, safety, and human handoff.
 - whatsapp/ — the Meta transport boundary and message lifecycle.
 - automation/ — leads, automatic follow-ups, and later customer reactivation.
+- analytics/ — metric definitions, reporting boundaries, and audience rules.
 - frontend/ — responsibilities and boundaries of dashboard/.
 - backend/ — responsibilities and separation of concerns in server/.
 - engineering/ — cross-cutting security, failure, testing, and coding expectations.

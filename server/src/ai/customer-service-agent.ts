@@ -1,6 +1,11 @@
 import { RequestContext } from '@mastra/core/request-context';
 import type { MastraLanguageModel } from '@mastra/core/agent';
-import { customerServiceAgent } from '../mastra/agents/customer-service-agent';
+import {
+  CUSTOMER_SERVICE_MODEL,
+  CUSTOMER_SERVICE_PROVIDER,
+  customerServiceAgent,
+} from '../mastra/agents/customer-service-agent';
+import { recordAiUsageSafely } from '../analytics/ai-usage.service';
 import { createDatabaseBusinessDataProvider } from '../business-data/database-business-data-provider';
 import { TENANT_CONTEXT_KEY, type TenantScope } from '../tenancy/tenant-context';
 import { buildBusinessContext, type BusinessDataProviderFactory } from './business-context';
@@ -26,6 +31,7 @@ import type { CustomerServiceToolName } from './agent-diagnostics';
 
 export interface CustomerServiceAgentInput {
   readonly tenant: TenantScope;
+  readonly conversationId?: string;
   readonly message: string;
   // Trusted application history; the conversation boundary authorizes its tenant/thread.
   readonly history?: ConversationHistory;
@@ -34,6 +40,7 @@ export interface CustomerServiceAgentInput {
 }
 
 export interface CustomerServiceAgentExecution {
+  readonly conversationId?: string;
   readonly messages: ConversationMessage[];
   readonly requestContext: RequestContext<CustomerServiceRequestContext>;
   readonly instructions: string;
@@ -42,16 +49,44 @@ export interface CustomerServiceAgentExecution {
 }
 
 export const executeCustomerServiceAgent = async (execution: CustomerServiceAgentExecution, model?: MastraLanguageModel): Promise<string> => {
-  const result = await customerServiceAgent.generate(execution.messages, {
-    requestContext: execution.requestContext,
-    instructions: execution.instructions,
-    ...(model ? { model } : {}),
-    maxSteps: 6,
-    abortSignal: AbortSignal.timeout(60000),
-    modelSettings: { maxOutputTokens: 2000 },
-    tracingOptions: { requestContextKeys: [`${TENANT_CONTEXT_KEY}.businessId`], hideInput: true, hideOutput: true },
-  });
-  return result.text;
+  const tenant = customerServiceTenantContextSchema.parse(
+    execution.requestContext.getRaw(TENANT_CONTEXT_KEY),
+  );
+  const startedAt = Date.now();
+  try {
+    const result = await customerServiceAgent.generate(execution.messages, {
+      requestContext: execution.requestContext,
+      instructions: execution.instructions,
+      ...(model ? { model } : {}),
+      maxSteps: 6,
+      abortSignal: AbortSignal.timeout(60000),
+      modelSettings: { maxOutputTokens: 2000 },
+      tracingOptions: { requestContextKeys: [`${TENANT_CONTEXT_KEY}.businessId`], hideInput: true, hideOutput: true },
+    });
+    await recordAiUsageSafely({
+      tenant,
+      ...(execution.conversationId ? { conversationId: execution.conversationId } : {}),
+      operation: 'CUSTOMER_SERVICE',
+      provider: CUSTOMER_SERVICE_PROVIDER,
+      model: result.response.modelId || CUSTOMER_SERVICE_MODEL,
+      status: 'SUCCESS',
+      usage: result.usage,
+      durationMs: Date.now() - startedAt,
+    });
+    return result.text;
+  } catch (error) {
+    await recordAiUsageSafely({
+      tenant,
+      ...(execution.conversationId ? { conversationId: execution.conversationId } : {}),
+      operation: 'CUSTOMER_SERVICE',
+      provider: CUSTOMER_SERVICE_PROVIDER,
+      model: CUSTOMER_SERVICE_MODEL,
+      status: 'FAILED',
+      durationMs: Date.now() - startedAt,
+      errorCode: error instanceof Error ? error.name : 'UnknownError',
+    });
+    throw error;
+  }
 };
 
 export type CustomerServiceAgentExecutor = (execution: CustomerServiceAgentExecution) => Promise<string>;
@@ -141,6 +176,7 @@ export const runCustomerServiceAgentWithDiagnostics = async (
   requestContext.setRaw(AI_RUN_KEY, run);
   try {
     const value = await (dependencies.executor ?? executeCustomerServiceAgent)({
+      ...(input.conversationId ? { conversationId: input.conversationId } : {}),
       messages,
       requestContext,
       instructions,
