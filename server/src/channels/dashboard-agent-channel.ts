@@ -9,6 +9,7 @@ import {
 } from '../conversations/customer-service-conversation';
 import { createTenantConversationRepository } from '../conversations/tenant-conversation.repository';
 import { ApplicationError } from '../http/errors';
+import { enforceRateLimit } from '../http/rate-limit';
 import { resolveDashboardTenantContext } from '../tenancy/dashboard-tenant-context';
 
 export const dashboardAgentRequestSchema = z.object({
@@ -57,6 +58,7 @@ export const handleDashboardAgentRequest = async (
     input.selectedBusinessId,
   );
   const body = await readRequestBody(input.request);
+  enforceRateLimit(`ai:${tenant.userId}`, 12);
   const parsed = dashboardAgentRequestSchema.safeParse(body);
 
   if (!parsed.success) {

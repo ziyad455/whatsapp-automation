@@ -70,6 +70,11 @@ export const startMastraServer = async ({
       DATABASE_URL: databaseUrl,
       DASHBOARD_URL: process.env.DASHBOARD_URL ?? 'http://localhost:5173',
       MASTRA_OBSERVABILITY_DATABASE_PATH: ':memory:',
+      // Never share workflow storage or provider credentials with development.
+      TURSO_DATABASE_URL: 'file::memory:',
+      TURSO_AUTH_TOKEN: '',
+      OPENROUTER_API_KEY: 'test-only-openrouter-key',
+      META_WHATSAPP_ACCESS_TOKEN: 'test-only-meta-token',
       META_WHATSAPP_APP_SECRET: whatsappAppSecret,
       META_WHATSAPP_VERIFY_TOKEN: whatsappVerifyToken,
       NODE_ENV: 'test',

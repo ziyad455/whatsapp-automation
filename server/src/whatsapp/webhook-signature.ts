@@ -7,7 +7,7 @@ export const verifyMetaWebhookSignature = (
   signatureHeader: string | undefined,
   appSecret: string,
 ): boolean => {
-  if (!signatureHeader) return false;
+  if (!signatureHeader || !appSecret) return false;
 
   const match = META_SIGNATURE_PATTERN.exec(signatureHeader);
   if (!match) return false;

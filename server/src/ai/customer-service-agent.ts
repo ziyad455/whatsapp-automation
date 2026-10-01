@@ -1,4 +1,6 @@
 import { RequestContext } from '@mastra/core/request-context';
+import { currentCorrelation } from '../observability/correlation';
+import { signalOperationalFailure } from '../observability/operational-alerts';
 import type { MastraLanguageModel } from '@mastra/core/agent';
 import {
   CUSTOMER_SERVICE_MODEL,
@@ -61,7 +63,10 @@ export const executeCustomerServiceAgent = async (execution: CustomerServiceAgen
       maxSteps: 6,
       abortSignal: AbortSignal.timeout(60000),
       modelSettings: { maxOutputTokens: 2000 },
-      tracingOptions: { requestContextKeys: [`${TENANT_CONTEXT_KEY}.businessId`], hideInput: true, hideOutput: true },
+      tracingOptions: {
+        requestContextKeys: [], hideInput: true, hideOutput: true,
+        metadata: { ...currentCorrelation(), businessId: tenant.businessId, conversationId: execution.conversationId, operation: 'CUSTOMER_SERVICE' },
+      },
     });
     await recordAiUsageSafely({
       tenant,
@@ -75,6 +80,7 @@ export const executeCustomerServiceAgent = async (execution: CustomerServiceAgen
     });
     return result.text;
   } catch (error) {
+    signalOperationalFailure('AI_FAILURE', { businessId: tenant.businessId, conversationId: execution.conversationId });
     await recordAiUsageSafely({
       tenant,
       ...(execution.conversationId ? { conversationId: execution.conversationId } : {}),

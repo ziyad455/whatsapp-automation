@@ -1,8 +1,10 @@
 import { z } from 'zod';
+import { isDeepStrictEqual } from 'node:util';
 import { appendTenantAuditEvent } from '../audit/tenant-audit.service';
 import { prisma } from '../db/prisma';
 import type { Prisma } from '../generated/prisma/client';
 import type { TenantContext, TenantScope } from '../tenancy/tenant-context';
+import { requireBusinessPermission } from '../tenancy/business-permissions';
 
 const scalarMetadataValueSchema = z.union([
   z.string().max(500),
@@ -12,6 +14,7 @@ const scalarMetadataValueSchema = z.union([
 ]);
 
 export const lifecycleEventInputSchema = z.object({
+  requestKey: z.uuid().optional(),
   type: z.enum([
     'BOOKING_COMPLETED',
     'PURCHASE_COMPLETED',
@@ -44,7 +47,7 @@ export type LifecycleEventInput = z.input<typeof lifecycleEventInputSchema>;
 
 export class CustomerLifecycleError extends Error {
   constructor(
-    readonly code: 'NOT_FOUND' | 'INVALID_RELATION',
+    readonly code: 'NOT_FOUND' | 'INVALID_RELATION' | 'CONFLICT',
     message: string,
   ) {
     super(message);
@@ -57,16 +60,17 @@ const relationExists = async (
   tenant: TenantScope,
   relation: 'lead' | 'conversation' | 'businessEntity',
   id: string | undefined,
+  customerId: string,
 ): Promise<boolean> => {
   if (!id) return true;
   if (relation === 'lead') {
     return (await transaction.lead.count({
-      where: { id, businessId: tenant.businessId },
+      where: { id, businessId: tenant.businessId, customerId },
     })) === 1;
   }
   if (relation === 'conversation') {
     return (await transaction.conversation.count({
-      where: { id, businessId: tenant.businessId },
+      where: { id, businessId: tenant.businessId, customerId },
     })) === 1;
   }
   return (await transaction.businessEntity.count({
@@ -122,8 +126,27 @@ export const createCustomerLifecycleEvent = async (
   customerId: string,
   rawInput: LifecycleEventInput,
 ) => {
+  requireBusinessPermission(tenant, 'CUSTOMER_LIFECYCLE_WRITE');
   const input = lifecycleEventInputSchema.parse(rawInput);
-  const event = await prisma.$transaction(async transaction => {
+  return prisma.$transaction(async transaction => {
+    if (input.requestKey) {
+      await transaction.$queryRaw`SELECT 1::integer AS locked FROM pg_advisory_xact_lock(
+        hashtext(${tenant.businessId}), hashtext(${input.requestKey}))`;
+      const existing = await transaction.customerLifecycleEvent.findFirst({
+        where: { businessId: tenant.businessId, requestKey: input.requestKey },
+      });
+      if (existing) {
+        if (existing.customerId !== customerId || existing.type !== input.type ||
+          existing.occurredAt.getTime() !== input.occurredAt.getTime() ||
+          existing.relatedLeadId !== (input.relatedLeadId ?? null) ||
+          existing.relatedConversationId !== (input.relatedConversationId ?? null) ||
+          existing.relatedEntityId !== (input.relatedEntityId ?? null) ||
+          !isDeepStrictEqual(existing.metadata, input.metadata)) {
+          throw new CustomerLifecycleError('CONFLICT', 'Request key was already used for another outcome.');
+        }
+        return existing;
+      }
+    }
     const customer = await transaction.customer.findFirst({
       where: { id: customerId, businessId: tenant.businessId },
       select: { id: true },
@@ -131,21 +154,22 @@ export const createCustomerLifecycleEvent = async (
     if (!customer) throw new CustomerLifecycleError('NOT_FOUND', 'Customer was not found.');
 
     const relations = await Promise.all([
-      relationExists(transaction, tenant, 'lead', input.relatedLeadId),
-      relationExists(transaction, tenant, 'conversation', input.relatedConversationId),
-      relationExists(transaction, tenant, 'businessEntity', input.relatedEntityId),
+      relationExists(transaction, tenant, 'lead', input.relatedLeadId, customerId),
+      relationExists(transaction, tenant, 'conversation', input.relatedConversationId, customerId),
+      relationExists(transaction, tenant, 'businessEntity', input.relatedEntityId, customerId),
     ]);
     if (relations.some(exists => !exists)) {
       throw new CustomerLifecycleError(
         'INVALID_RELATION',
-        'A related lifecycle record does not belong to this business.',
+        'A related lifecycle record does not belong to this business and customer.',
       );
     }
 
-    return transaction.customerLifecycleEvent.create({
+    const event = await transaction.customerLifecycleEvent.create({
       data: {
         businessId: tenant.businessId,
         customerId,
+        requestKey: input.requestKey ?? null,
         type: input.type,
         occurredAt: input.occurredAt,
         metadata: input.metadata,
@@ -156,10 +180,9 @@ export const createCustomerLifecycleEvent = async (
         ...(input.relatedEntityId ? { relatedEntityId: input.relatedEntityId } : {}),
       },
     });
+    await attributeConversion(transaction, tenant, customerId, event.id, event.occurredAt);
+    return event;
   });
-
-  await attributeCampaignConversion(tenant, customerId, event.id, event.occurredAt);
-  return event;
 };
 
 export const recordMarketingPreference = async (
@@ -170,7 +193,9 @@ export const recordMarketingPreference = async (
     readonly source: 'STAFF' | 'CUSTOMER' | 'PROVIDER';
     readonly evidence?: string;
   },
-) => prisma.$transaction(async transaction => {
+) => {
+  requireBusinessPermission(tenant, 'CUSTOMER_PREFERENCE_WRITE');
+  return prisma.$transaction(async transaction => {
   await transaction.$queryRaw`SELECT 1::integer AS locked FROM pg_advisory_xact_lock(
     hashtext(${tenant.businessId}), hashtext(${customerId}))`;
   const customer = await transaction.customer.findFirst({
@@ -223,7 +248,8 @@ export const recordMarketingPreference = async (
     after: updated,
   });
   return updated;
-});
+  });
+};
 
 const CONVERSION_ATTRIBUTION_DAYS = 30;
 
@@ -232,13 +258,26 @@ export const attributeCampaignConversion = async (
   customerId: string,
   lifecycleEventId: string,
   occurredAt: Date,
+): Promise<boolean> => prisma.$transaction(async transaction => {
+  const event = await transaction.customerLifecycleEvent.findFirst({
+    where: { id: lifecycleEventId, businessId: tenant.businessId, customerId, occurredAt },
+  });
+  if (!event) return false;
+  return attributeConversion(transaction, tenant, customerId, lifecycleEventId, occurredAt);
+});
+
+const attributeConversion = async (
+  transaction: Prisma.TransactionClient,
+  tenant: TenantScope,
+  customerId: string,
+  lifecycleEventId: string,
+  occurredAt: Date,
 ): Promise<boolean> => {
-  const recipient = await prisma.campaignRecipient.findFirst({
+  const recipient = await transaction.campaignRecipient.findFirst({
     where: {
       businessId: tenant.businessId,
       customerId,
       status: 'SENT',
-      convertedAt: null,
       sentAt: {
         lte: occurredAt,
         gte: new Date(occurredAt.getTime() - CONVERSION_ATTRIBUTION_DAYS * 86_400_000),
@@ -248,7 +287,7 @@ export const attributeCampaignConversion = async (
     select: { id: true },
   });
   if (!recipient) return false;
-  const updated = await prisma.campaignRecipient.updateMany({
+  const updated = await transaction.campaignRecipient.updateMany({
     where: {
       id: recipient.id,
       businessId: tenant.businessId,
@@ -275,7 +314,6 @@ export const attributeCampaignReply = async (
       businessId: tenant.businessId,
       customerId,
       status: 'SENT',
-      repliedAt: null,
       sentAt: {
         lte: repliedAt,
         gte: new Date(repliedAt.getTime() - REPLY_ATTRIBUTION_DAYS * 86_400_000),

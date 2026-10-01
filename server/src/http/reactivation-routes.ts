@@ -19,6 +19,8 @@ import {
   resolveDashboardTenantContext,
 } from '../tenancy/dashboard-tenant-context';
 import { ApplicationError } from './errors';
+import { enforceRateLimit } from './rate-limit';
+import { requireBusinessPermission } from '../tenancy/business-permissions';
 
 const identifierSchema = z.uuid();
 const marketingPreferenceSchema = z.object({
@@ -29,16 +31,6 @@ const marketingPreferenceSchema = z.object({
 
 const badRequest = (message = 'Reactivation request validation failed.') =>
   new ApplicationError({ code: 'BAD_REQUEST', status: 400, message });
-
-const requireOwner = (role: 'OWNER' | 'STAFF') => {
-  if (role !== 'OWNER') {
-    throw new ApplicationError({
-      code: 'FORBIDDEN',
-      status: 403,
-      message: 'Only owners can create, approve, launch, or cancel campaigns.',
-    });
-  }
-};
 
 const asApplicationError = (error: unknown): never => {
   if (error instanceof CustomerLifecycleError) {
@@ -139,7 +131,7 @@ export const reactivationRoutes = [
     method: 'POST', requiresAuth: true,
     handler: async context => {
       const tenant = await resolveTenant(context.get('requestContext'), context.req.header(BUSINESS_SELECTOR_HEADER));
-      requireOwner(tenant.role);
+      requireBusinessPermission(tenant, 'CAMPAIGN_CREATE');
       const input = campaignInputSchema.safeParse(await context.req.json().catch(() => null));
       if (!input.success) throw badRequest();
       try {
@@ -173,7 +165,10 @@ export const reactivationRoutes = [
         const tenant = await resolveTenant(context.get('requestContext'), context.req.header(BUSINESS_SELECTOR_HEADER));
         const campaignId = identifierSchema.safeParse(context.req.param('campaignId'));
         if (!campaignId.success) throw badRequest();
-        if (action !== 'preview') requireOwner(tenant.role);
+        if (action !== 'preview') requireBusinessPermission(tenant, ({
+          prepare: 'CAMPAIGN_PREPARE', launch: 'CAMPAIGN_LAUNCH', cancel: 'CAMPAIGN_CANCEL',
+        } as const)[action]);
+        if (action === 'launch') enforceRateLimit(`campaign-launch:${tenant.userId}`, 5);
         const service = createTenantCampaignService(tenant);
         try {
           const result = action === 'preview' ? await service.preview(campaignId.data)

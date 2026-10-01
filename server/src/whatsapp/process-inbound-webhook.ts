@@ -18,11 +18,12 @@ import {
 import { resolveWhatsAppTenant, type WhatsAppTenantContext } from './whatsapp-tenant-context';
 import { verifyMetaWebhookSignature } from './webhook-signature';
 import { syncCampaignRecipientTransportStatus } from '../reactivation/campaign-worker';
+import { readBoundedBody, RequestBodyTooLargeError } from '../http/bounded-body';
 
 export type WhatsAppWebhookRejection = {
   readonly accepted: false;
-  readonly status: 400 | 401;
-  readonly body: 'Bad Request' | 'Unauthorized';
+  readonly status: 400 | 401 | 413;
+  readonly body: 'Bad Request' | 'Unauthorized' | 'Payload Too Large';
 };
 
 export type ResolvedInboundMessage = {
@@ -91,7 +92,15 @@ export const processInboundWhatsAppWebhook = async (
   request: Request,
   dependencies: WhatsAppWebhookProcessorDependencies,
 ): Promise<WhatsAppWebhookProcessingResult> => {
-  const rawBody = new Uint8Array(await request.arrayBuffer());
+  let rawBody: Uint8Array;
+  try {
+    rawBody = await readBoundedBody(request);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return { accepted: false, status: 413, body: 'Payload Too Large' };
+    }
+    throw error;
+  }
   const signature = request.headers.get('x-hub-signature-256') ?? undefined;
 
   if (!verifyMetaWebhookSignature(rawBody, signature, dependencies.appSecret)) {
@@ -173,7 +182,7 @@ export const processInboundWhatsAppWebhook = async (
     const outcome = await applyStatusEvent(tenant, event);
     const syncCampaignStatus = dependencies.syncCampaignStatus ??
       (dependencies.applyStatusEvent ? null : syncCampaignRecipientTransportStatus);
-    if (outcome.outcome === 'APPLIED' && syncCampaignStatus) {
+    if (outcome.outcome !== 'UNKNOWN' && syncCampaignStatus) {
       await syncCampaignStatus(
         tenant,
         event.externalMessageId,

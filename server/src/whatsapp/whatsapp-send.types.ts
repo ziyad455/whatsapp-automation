@@ -19,12 +19,16 @@ export class WhatsAppSendError extends Error {
   readonly code: WhatsAppSendErrorCode;
   readonly retryable: boolean;
   readonly providerStatus?: number;
+  readonly providerCode?: number;
+  readonly retryAfterMs?: number;
 
   constructor(options: {
     code: WhatsAppSendErrorCode;
     message: string;
     retryable: boolean;
     providerStatus?: number;
+    providerCode?: number;
+    retryAfterMs?: number;
     cause?: unknown;
   }) {
     super(options.message, { cause: options.cause });
@@ -32,6 +36,8 @@ export class WhatsAppSendError extends Error {
     this.code = options.code;
     this.retryable = options.retryable;
     this.providerStatus = options.providerStatus;
+    this.providerCode = options.providerCode;
+    this.retryAfterMs = options.retryAfterMs;
   }
 
   toJSON(): Record<string, unknown> {
@@ -40,6 +46,7 @@ export class WhatsAppSendError extends Error {
       code: this.code,
       message: this.message,
       retryable: this.retryable,
+      ...(this.providerCode === undefined ? {} : { providerCode: this.providerCode }),
       ...(this.providerStatus === undefined
         ? {}
         : { providerStatus: this.providerStatus }),

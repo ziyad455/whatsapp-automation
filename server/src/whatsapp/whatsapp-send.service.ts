@@ -1,4 +1,5 @@
 import { applicationLogger } from '../http/logger';
+import { signalOperationalFailure } from '../observability/operational-alerts';
 import {
   resolveOrCreateWhatsAppCustomer,
   type WhatsAppCustomerIdentity,
@@ -6,11 +7,12 @@ import {
 import { createMetaWhatsAppTransport } from './meta-whatsapp-transport';
 import {
   findActiveWhatsAppConnectionForTenant,
+  blockWhatsAppOutbound,
   type WhatsAppOutboundConnectionRecord,
 } from './whatsapp-connection.repository';
 import {
   createPendingOutgoingWhatsAppMessage,
-  findPendingOutgoingWhatsAppMessage,
+  claimPendingOutgoingWhatsAppMessage,
   markOutgoingWhatsAppMessageFailed,
   markOutgoingWhatsAppMessageSent,
 } from './whatsapp-message.repository';
@@ -51,9 +53,10 @@ export interface WhatsAppTemplateSendDependencies {
   readonly findConnection?: WhatsAppSendServiceDependencies['findConnection'];
   readonly transport?: WhatsAppTemplateTransport;
   readonly logger?: WhatsAppSendLogger;
-  readonly findPendingMessage?: typeof findPendingOutgoingWhatsAppMessage;
+  readonly findPendingMessage?: typeof claimPendingOutgoingWhatsAppMessage;
   readonly markMessageSent?: typeof markOutgoingWhatsAppMessageSent;
   readonly markMessageFailed?: typeof markOutgoingWhatsAppMessageFailed;
+  readonly blockOutbound?: typeof blockWhatsAppOutbound;
 }
 
 export interface WhatsAppSendServiceDependencies {
@@ -67,9 +70,10 @@ export interface WhatsAppSendServiceDependencies {
     customerPhone: string,
   ) => Promise<WhatsAppCustomerIdentity>;
   readonly createPendingMessage?: typeof createPendingOutgoingWhatsAppMessage;
-  readonly findPendingMessage?: typeof findPendingOutgoingWhatsAppMessage;
+  readonly findPendingMessage?: typeof claimPendingOutgoingWhatsAppMessage;
   readonly markMessageSent?: typeof markOutgoingWhatsAppMessageSent;
   readonly markMessageFailed?: typeof markOutgoingWhatsAppMessageFailed;
+  readonly blockOutbound?: typeof blockWhatsAppOutbound;
 }
 
 export const sendWhatsAppText = async (
@@ -99,7 +103,7 @@ export const sendWhatsAppText = async (
   }
 
   const pendingMessage = input.reservedTransportMessageId
-    ? await (dependencies.findPendingMessage ?? findPendingOutgoingWhatsAppMessage)(
+    ? await (dependencies.findPendingMessage ?? claimPendingOutgoingWhatsAppMessage)(
         input.tenant,
         input.reservedTransportMessageId,
         input.to,
@@ -137,6 +141,15 @@ export const sendWhatsAppText = async (
       text: input.text,
     });
   } catch (error) {
+    signalOperationalFailure(error instanceof WhatsAppSendError && error.code === 'AUTHENTICATION' ? 'META_AUTH' : 'META_SEND', { businessId: input.tenant.businessId });
+    if (error instanceof WhatsAppSendError && error.code === 'AUTHENTICATION') {
+      try {
+        await (dependencies.blockOutbound ?? blockWhatsAppOutbound)(input.tenant);
+      } catch {
+        logger.warn('WhatsApp outbound circuit could not be persisted', { businessId: input.tenant.businessId });
+        signalOperationalFailure('DATABASE_UNAVAILABLE');
+      }
+    }
     const markMessageFailed = dependencies.markMessageFailed ??
       markOutgoingWhatsAppMessageFailed;
     const failure = error instanceof WhatsAppSendError
@@ -145,7 +158,7 @@ export const sendWhatsAppText = async (
           title: error.message,
           ...(error.providerStatus === undefined
             ? {}
-            : { details: `Meta HTTP status ${error.providerStatus}` }),
+            : { details: `Meta HTTP status ${error.providerStatus}${error.providerCode === undefined ? '' : `; Graph code ${error.providerCode}`}` }),
         }
       : {
           code: 'UNEXPECTED_TRANSPORT_ERROR',
@@ -165,6 +178,7 @@ export const sendWhatsAppText = async (
         businessId: connection.businessId,
         connectionId: connection.id,
         failureCode: error.code,
+        providerCode: error.providerCode,
         retryable: error.retryable,
         ...(error.providerStatus === undefined
           ? {}
@@ -176,17 +190,17 @@ export const sendWhatsAppText = async (
 
   const markMessageSent = dependencies.markMessageSent ??
     markOutgoingWhatsAppMessageSent;
-  await markMessageSent(
-    input.tenant,
-    pendingMessage.id,
-    result.externalMessageId,
-  );
   logger.info('WhatsApp text accepted by provider', {
     businessId: connection.businessId,
     connectionId: connection.id,
     messageId: pendingMessage.id,
     externalMessageId: result.externalMessageId,
   });
+  await markMessageSent(
+    input.tenant,
+    pendingMessage.id,
+    result.externalMessageId,
+  );
   return { ...result, transportMessageId: pendingMessage.id };
 };
 
@@ -206,7 +220,7 @@ export const sendWhatsAppTemplate = async (
   }
 
   const pendingMessage = await (
-    dependencies.findPendingMessage ?? findPendingOutgoingWhatsAppMessage
+    dependencies.findPendingMessage ?? claimPendingOutgoingWhatsAppMessage
   )(input.tenant, input.reservedTransportMessageId, input.to);
   if (!pendingMessage) {
     throw new WhatsAppSendError({
@@ -223,25 +237,34 @@ export const sendWhatsAppTemplate = async (
       to: input.to,
       template: input.template,
     });
-    await (dependencies.markMessageSent ?? markOutgoingWhatsAppMessageSent)(
-      input.tenant,
-      pendingMessage.id,
-      result.externalMessageId,
-    );
     logger.info('WhatsApp template accepted by provider', {
       businessId: connection.businessId,
       connectionId: connection.id,
       messageId: pendingMessage.id,
       externalMessageId: result.externalMessageId,
     });
+    await (dependencies.markMessageSent ?? markOutgoingWhatsAppMessageSent)(
+      input.tenant,
+      pendingMessage.id,
+      result.externalMessageId,
+    );
     return { ...result, transportMessageId: pendingMessage.id };
   } catch (error) {
+    signalOperationalFailure(error instanceof WhatsAppSendError && error.code === 'AUTHENTICATION' ? 'META_AUTH' : 'META_SEND', { businessId: input.tenant.businessId });
+    if (error instanceof WhatsAppSendError && error.code === 'AUTHENTICATION') {
+      try {
+        await (dependencies.blockOutbound ?? blockWhatsAppOutbound)(input.tenant);
+      } catch {
+        logger.warn('WhatsApp outbound circuit could not be persisted', { businessId: input.tenant.businessId });
+        signalOperationalFailure('DATABASE_UNAVAILABLE');
+      }
+    }
     const failure = error instanceof WhatsAppSendError ? {
       code: error.code,
       title: error.message,
       ...(error.providerStatus === undefined
         ? {}
-        : { details: `Meta HTTP status ${error.providerStatus}` }),
+        : { details: `Meta HTTP status ${error.providerStatus}${error.providerCode === undefined ? '' : `; Graph code ${error.providerCode}`}` }),
     } : {
       code: 'UNEXPECTED_TRANSPORT_ERROR',
       title: 'The WhatsApp transport failed unexpectedly.',

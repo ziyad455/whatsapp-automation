@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { prisma } from '../db/prisma';
 import type { Campaign, CampaignTemplateStatus, Prisma } from '../generated/prisma/client';
 import type { TenantContext, TenantScope } from '../tenancy/tenant-context';
+import { requireBusinessPermission } from '../tenancy/business-permissions';
 import {
   evaluateCampaignRecipientEligibility,
   type CampaignEligibilityReason,
@@ -298,6 +299,7 @@ export const createTenantCampaignService = (
       return campaign;
     },
     create: async (rawInput: CampaignInput) => {
+      requireBusinessPermission(tenant, 'CAMPAIGN_CREATE');
       const input = campaignInputSchema.parse(rawInput);
       renderCampaignTemplate(input.templateBody, input.templateParameters);
       return prisma.campaign.create({
@@ -315,6 +317,7 @@ export const createTenantCampaignService = (
     preview: (campaignId: string, now?: Date) =>
       previewCampaign(tenant, campaignId, verifier, now),
     prepare: async (campaignId: string, now = new Date()) => {
+      requireBusinessPermission(tenant, 'CAMPAIGN_PREPARE');
       const preview = await previewCampaign(tenant, campaignId, verifier, now);
       if (preview.eligibleCount === 0) {
         throw new CampaignOperationError(
@@ -323,11 +326,11 @@ export const createTenantCampaignService = (
         );
       }
       await prisma.$transaction(async transaction => {
-        const campaign = await transaction.campaign.findFirst({
+        const claimed = await transaction.campaign.updateMany({
           where: { id: campaignId, businessId: tenant.businessId, status: 'DRAFT' },
-          select: { id: true },
+          data: { status: 'READY', approvedAt: now, failureReasonCode: null },
         });
-        if (!campaign) {
+        if (claimed.count !== 1) {
           throw new CampaignOperationError('CONFLICT', 'Only a draft campaign can be prepared.');
         }
         await transaction.campaignRecipient.deleteMany({
@@ -346,14 +349,11 @@ export const createTenantCampaignService = (
               : recipient.eligibility,
           })),
         });
-        await transaction.campaign.update({
-          where: { businessId_id: { businessId: tenant.businessId, id: campaignId } },
-          data: { status: 'READY', approvedAt: now, failureReasonCode: null },
-        });
       });
       return preview;
     },
     launch: async (campaignId: string, now = new Date()) => {
+      requireBusinessPermission(tenant, 'CAMPAIGN_LAUNCH');
       const pending = await prisma.campaignRecipient.count({
         where: { businessId: tenant.businessId, campaignId, status: 'PENDING' },
       });
@@ -370,6 +370,7 @@ export const createTenantCampaignService = (
       return { campaignId, status: 'SENDING' as const, pending };
     },
     cancel: async (campaignId: string, now = new Date()) => {
+      requireBusinessPermission(tenant, 'CAMPAIGN_CANCEL');
       const updated = await prisma.$transaction(async transaction => {
         const changed = await transaction.campaign.updateMany({
           where: {

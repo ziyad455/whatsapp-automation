@@ -9,15 +9,17 @@ import {
   SensitiveDataFilter,
 } from '@mastra/observability';
 import { env } from '../config/env';
+import { PrivateTraceProcessor } from '../observability/private-traces';
+import { safeRequestPath } from '../observability/redaction';
 import { mastraAuth } from '../auth/mastra-auth';
 import { toErrorResponse } from '../http/errors';
 import { applicationLogger } from '../http/logger';
 import { readinessMiddleware, requestContextMiddleware } from '../http/middleware';
 import { getOrCreateRequestId } from '../http/request-context';
+import { securityMiddleware } from '../http/security-middleware';
 import { applicationRoutes } from '../http/routes';
 import { customerServiceAgent } from './agents/customer-service-agent';
 import { leadSummaryWorker } from './agents/lead-summary-worker';
-import { startScheduleTool, stopScheduleTool } from './tools/schedule-tools';
 import { customerServiceBusinessTools } from './tools/business-information-tools';
 import { followUpWorkflow } from './workflows/follow-up-workflow';
 import { campaignWorkflow } from './workflows/campaign-workflow';
@@ -32,7 +34,7 @@ export const mastra = new Mastra({
   },
   agents: { customerServiceAgent, leadSummaryWorker },
   workflows: { followUpWorkflow, campaignWorkflow },
-  tools: { startScheduleTool, stopScheduleTool, ...customerServiceBusinessTools },
+  tools: { ...customerServiceBusinessTools },
   logger: applicationLogger,
   server: {
     port: env.PORT,
@@ -50,10 +52,10 @@ export const mastra = new Mastra({
       credentials: true,
     },
     apiRoutes: applicationRoutes,
-    middleware: [requestContextMiddleware, readinessMiddleware],
+    middleware: [requestContextMiddleware, securityMiddleware, readinessMiddleware],
     onError: (error, context) => {
       const requestId = getOrCreateRequestId(context.get('requestContext'));
-      const path = new URL(context.req.url).pathname;
+      const path = safeRequestPath(context.req.path);
 
       applicationLogger.error('HTTP request failed', {
         requestId,
@@ -64,6 +66,7 @@ export const mastra = new Mastra({
 
       const response = toErrorResponse(error, requestId);
       context.header('x-request-id', requestId);
+      if (response.status === 429) context.header('retry-after', '60');
       return context.json(response.body, response.status);
     },
   },
@@ -83,7 +86,7 @@ export const mastra = new Mastra({
       default: {
         serviceName: 'mastra',
         exporters: [new MastraStorageExporter(), new MastraPlatformExporter()],
-        spanOutputProcessors: [new SensitiveDataFilter()],
+        spanOutputProcessors: [new SensitiveDataFilter(), new PrivateTraceProcessor()],
       },
     },
   }),

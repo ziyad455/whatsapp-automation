@@ -35,6 +35,7 @@ try {
       data: {
         whatsappBusinessAccountId: env.META_WHATSAPP_BUSINESS_ACCOUNT_ID,
         status: 'ACTIVE',
+        ...(process.argv.includes('--resume-outbound') ? { outboundBlockedAt: null } : {}),
       },
     })
     : await prisma.whatsAppConnection.create({

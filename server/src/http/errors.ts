@@ -5,10 +5,12 @@ export type ApplicationErrorCode =
   | 'FORBIDDEN'
   | 'NOT_FOUND'
   | 'CONFLICT'
+  | 'RATE_LIMITED'
+  | 'PAYLOAD_TOO_LARGE'
   | 'DEPENDENCY_UNAVAILABLE'
   | 'INTERNAL_SERVER_ERROR';
 
-type ApplicationErrorStatus = 400 | 401 | 403 | 404 | 409 | 500 | 503;
+type ApplicationErrorStatus = 400 | 401 | 403 | 404 | 409 | 413 | 429 | 500 | 503;
 
 export class ApplicationError extends Error {
   readonly code: ApplicationErrorCode;

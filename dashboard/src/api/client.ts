@@ -182,7 +182,7 @@ export const dashboardApi = {
   createCustomerLifecycleEvent: (
     businessId: string,
     customerId: string,
-    input: { type: CustomerLifecycleEventType; occurredAt: string; metadata?: Record<string, string> },
+    input: { requestKey?: string; type: CustomerLifecycleEventType; occurredAt: string; metadata?: Record<string, string> },
   ) => apiRequest<{ event: CustomerHistory['lifecycleEvents'][number] }>(
     `/dashboard/customers/${customerId}/lifecycle-events`,
     { method: 'POST', businessId, body: input },

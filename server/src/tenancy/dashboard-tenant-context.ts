@@ -9,6 +9,7 @@ import {
 } from '../http/request-context';
 import { findMembership } from '../memberships/business-user.repository';
 import type { TenantContext } from './tenant-context';
+import { enforceRateLimit } from '../http/rate-limit';
 
 export const BUSINESS_SELECTOR_HEADER = 'x-business-id' as const;
 
@@ -26,6 +27,7 @@ export const resolveDashboardTenantContext = async (
   selectedBusinessId?: string,
 ): Promise<TenantContext> => {
   const user = requireAuthenticatedUser(requestContext);
+  enforceRateLimit(`dashboard:${user.id}`, 180);
   const requestId = getOrCreateRequestId(requestContext);
 
   if (!selectedBusinessId) {

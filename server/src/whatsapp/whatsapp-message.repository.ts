@@ -43,8 +43,14 @@ export const claimInboundWhatsAppMessage = async (
           customerId,
           direction: 'INBOUND',
           externalMessageId: message.externalMessageId,
-          processingStatus: 'FAILED',
           conversationMessageId: null,
+          OR: [
+            { processingStatus: 'FAILED' },
+            {
+              processingStatus: { in: ['RECEIVED', 'PROCESSING'] },
+              updatedAt: { lt: new Date(Date.now() - 15 * 60_000) },
+            },
+          ],
         },
         data: {
           processingStatus: 'RECEIVED',
@@ -125,27 +131,32 @@ export const createPendingOutgoingWhatsAppMessage = (
       ? { conversationMessageId: input.conversationMessageId }
       : {}),
     direction: 'OUTBOUND',
-    recipientPhone: input.recipientPhone,
-    deliveryStatus: 'PENDING',
+      recipientPhone: input.recipientPhone,
+      deliveryStatus: 'PENDING',
+      sendStartedAt: new Date(),
   },
   select: { id: true },
 });
 
-export const findPendingOutgoingWhatsAppMessage = (
+export const claimPendingOutgoingWhatsAppMessage = async (
   tenant: WhatsAppTenantContext,
   messageId: string,
   recipientPhone: string,
-) => prisma.whatsAppMessage.findFirst({
+) => {
+  const claimed = await prisma.whatsAppMessage.updateMany({
   where: {
     id: messageId,
     businessId: tenant.businessId,
     whatsappConnectionId: tenant.whatsappConnectionId,
     direction: 'OUTBOUND',
     deliveryStatus: 'PENDING',
+    sendStartedAt: null,
     recipientPhone,
   },
-  select: { id: true },
-});
+  data: { sendStartedAt: new Date() },
+  });
+  return claimed.count === 1 ? { id: messageId } : null;
+};
 
 export const markOutgoingWhatsAppMessageSent = async (
   tenant: WhatsAppTenantContext,

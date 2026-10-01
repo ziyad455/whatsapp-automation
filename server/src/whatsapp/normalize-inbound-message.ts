@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
 const metaMessageSchema = z.object({
-  id: z.string().min(1),
-  from: z.string().regex(/^\d+$/),
-  timestamp: z.string().regex(/^\d+$/),
+  id: z.string().min(1).max(512),
+  from: z.string().regex(/^\d+$/).max(100),
+  timestamp: z.string().regex(/^\d+$/).max(16),
   type: z.string().min(1),
   text: z.object({ body: z.string().min(1).max(4_096) }).optional(),
 }).passthrough();
@@ -18,20 +18,20 @@ const metaStatusErrorSchema = z.object({
 }).passthrough();
 
 const metaStatusSchema = z.object({
-  id: z.string().min(1),
+  id: z.string().min(1).max(512),
   status: z.string().min(1),
-  timestamp: z.string().regex(/^\d+$/),
-  recipient_id: z.string().regex(/^\d+$/),
-  errors: z.array(metaStatusErrorSchema).optional(),
+  timestamp: z.string().regex(/^\d+$/).max(16),
+  recipient_id: z.string().regex(/^\d+$/).max(100),
+  errors: z.array(metaStatusErrorSchema).max(100).optional(),
 }).passthrough();
 
 const metaMessageValueSchema = z.object({
   messaging_product: z.literal('whatsapp'),
   metadata: z.object({
-    phone_number_id: z.string().regex(/^\d+$/),
+    phone_number_id: z.string().regex(/^\d+$/).max(100),
   }).passthrough(),
-  messages: z.array(metaMessageSchema).optional(),
-  statuses: z.array(metaStatusSchema).optional(),
+  messages: z.array(metaMessageSchema).max(1000).optional(),
+  statuses: z.array(metaStatusSchema).max(1000).optional(),
 }).passthrough();
 
 const metaWebhookSchema = z.object({
@@ -40,8 +40,8 @@ const metaWebhookSchema = z.object({
     changes: z.array(z.object({
       field: z.string(),
       value: z.unknown(),
-    }).passthrough()),
-  }).passthrough()),
+    }).passthrough()).max(100),
+  }).passthrough()).max(100),
 }).passthrough();
 
 export const inboundMessageSchema = z.object({

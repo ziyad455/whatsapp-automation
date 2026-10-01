@@ -3,6 +3,9 @@ import { verifyDatabaseConnection } from '../db/prisma';
 import { ApplicationError } from './errors';
 import { applicationLogger } from './logger';
 import { initializeRequestContext } from './request-context';
+import { withCorrelation } from '../observability/correlation';
+import { signalOperationalFailure } from '../observability/operational-alerts';
+import { safeRequestPath } from '../observability/redaction';
 
 export const requestContextMiddleware: Middleware = async (context, next) => {
   const startedAt = performance.now();
@@ -10,7 +13,7 @@ export const requestContextMiddleware: Middleware = async (context, next) => {
     context.get('requestContext'),
     context.req.header('x-request-id'),
   );
-  const path = new URL(context.req.url).pathname;
+  const path = safeRequestPath(context.req.path);
 
   applicationLogger.info('HTTP request started', {
     requestId,
@@ -19,7 +22,7 @@ export const requestContextMiddleware: Middleware = async (context, next) => {
   });
 
   context.header('x-request-id', requestId);
-  await next();
+  await withCorrelation({ requestId }, next);
 
   applicationLogger.info('HTTP request completed', {
     requestId,
@@ -36,6 +39,7 @@ export const readinessMiddleware: Middleware = {
     try {
       await verifyDatabaseConnection();
     } catch (error) {
+      signalOperationalFailure('DATABASE_UNAVAILABLE');
       throw new ApplicationError({
         code: 'DEPENDENCY_UNAVAILABLE',
         message: 'PostgreSQL is unavailable.',

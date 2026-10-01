@@ -1,8 +1,10 @@
 import { prisma } from '../db/prisma';
+import { signalOperationalFailure } from '../observability/operational-alerts';
 import { applicationLogger } from '../http/logger';
 import { sendWhatsAppText } from '../whatsapp/whatsapp-send.service';
 import { markOutgoingWhatsAppMessageFailed } from '../whatsapp/whatsapp-message.repository';
 import { WhatsAppSendError } from '../whatsapp/whatsapp-send.types';
+import { nextSendAttempt } from '../whatsapp/retry-policy';
 import {
   businessFollowUpSettings,
 } from './follow-up.service';
@@ -12,7 +14,6 @@ import {
   type FollowUpGuardReason,
 } from './follow-up-policy';
 
-const MAX_ATTEMPTS = 3;
 const STALE_CLAIM_MS = 2 * 60_000;
 const BATCH_SIZE = 25;
 
@@ -148,7 +149,7 @@ export const processDueFollowUp = async (
       if (!transport) return null;
       await transaction.whatsAppMessage.update({
         where: { id: transport.id },
-        data: { deliveryStatus: 'PENDING', failedAt: null, failureCode: null,
+        data: { deliveryStatus: 'PENDING', sendStartedAt: null, failedAt: null, failureCode: null,
           failureTitle: null, failureDetails: null },
       });
       return transport.id;
@@ -239,15 +240,14 @@ export const processDueFollowUp = async (
     });
     return 'SENT';
   } catch (error) {
-    const definiteRetryable = error instanceof WhatsAppSendError &&
-      ['RATE_LIMITED', 'PROVIDER_UNAVAILABLE'].includes(error.code);
-    const retry = definiteRetryable && followUp.attemptCount < MAX_ATTEMPTS;
+    const nextAttemptAt = nextSendAttempt(error, followUp.attemptCount, now);
+    const retry = nextAttemptAt !== null;
     const reasonCode = error instanceof WhatsAppSendError ? error.code : 'INDETERMINATE_ATTEMPT';
     await prisma.followUp.updateMany({
       where: { id, businessId: followUp.businessId, status: 'SENDING' },
       data: retry ? {
         status: 'PENDING', claimedAt: null, reasonCode,
-        scheduledAt: new Date(now.getTime() + 60_000 * 2 ** followUp.attemptCount),
+        scheduledAt: nextAttemptAt!,
       } : { status: 'FAILED', failedAt: new Date(), reasonCode },
     });
     applicationLogger.warn('Follow-up transport attempt failed', {
@@ -261,13 +261,14 @@ export const processDueFollowUps = async (
   dependencies: FollowUpWorkerDependencies = {},
 ): Promise<{ processed: number; sent: number }> => {
   const now = dependencies.now?.() ?? new Date();
-  await prisma.followUp.updateMany({
+  const stale = await prisma.followUp.updateMany({
     where: {
       status: { in: ['PROCESSING', 'SENDING'] },
       claimedAt: { lt: new Date(now.getTime() - STALE_CLAIM_MS) },
     },
     data: { status: 'FAILED', failedAt: now, reasonCode: 'INDETERMINATE_ATTEMPT' },
   });
+  if (stale.count) signalOperationalFailure('STALE_ATTEMPT');
   const due = await prisma.followUp.findMany({
     where: { status: 'PENDING', scheduledAt: { lte: now } },
     orderBy: [{ scheduledAt: 'asc' }, { id: 'asc' }],
@@ -279,8 +280,11 @@ export const processDueFollowUps = async (
     try {
       if (await processDueFollowUp(item.id, dependencies) === 'SENT') sent += 1;
     } catch (error) {
+      signalOperationalFailure('WORKFLOW_FAILURE');
       await prisma.followUp.updateMany({
-        where: { id: item.id, status: { in: ['PROCESSING', 'SENDING'] } },
+        // Never finalize an in-flight external send without owning its claim.
+        // SENDING uncertainty is handled by the stale-attempt recovery above.
+        where: { id: item.id, status: 'PROCESSING' },
         data: { status: 'FAILED', failedAt: new Date(), reasonCode: 'INDETERMINATE_ATTEMPT' },
       });
       applicationLogger.error('Follow-up processing failed', {

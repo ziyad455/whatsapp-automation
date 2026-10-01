@@ -67,6 +67,12 @@ For example:
 
 ## Project-wide invariants
 
+Security and operations references: [authorization](engineering/authorization.md),
+[operations runbook](engineering/operations-runbook.md),
+[database recovery](engineering/database-recovery.md),
+[security/index audit evidence](engineering/sprint-15-audit.md), and
+[AI action boundaries](ai/action-boundaries.md).
+
 1. One shared application serves many businesses, but tenant data never crosses business boundaries.
 2. Every tenant-owned operation runs inside an authorized TenantContext.
 3. The client and the AI are never trusted to select an unrestricted businessId.

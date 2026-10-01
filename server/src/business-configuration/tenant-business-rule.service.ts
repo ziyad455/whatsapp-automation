@@ -2,6 +2,7 @@ import type { BusinessRule } from '../generated/prisma/client';
 import { appendTenantAuditEvent } from '../audit/tenant-audit.service';
 import { prisma } from '../db/prisma';
 import type { TenantContext } from '../tenancy/tenant-context';
+import { requireBusinessPermission } from '../tenancy/business-permissions';
 
 export interface CreateBusinessRuleInput {
   category: string;
@@ -36,8 +37,9 @@ export const createTenantBusinessRuleService = (
       },
       orderBy: [{ active: 'desc' }, { createdAt: 'asc' }, { id: 'asc' }],
     }),
-  create: input =>
-    prisma.$transaction(async transaction => {
+  create: async input => {
+    requireBusinessPermission(tenant, 'BUSINESS_CONFIGURATION_WRITE');
+    return prisma.$transaction(async transaction => {
       const rule = await transaction.businessRule.create({
         data: {
           businessId: tenant.businessId,
@@ -60,8 +62,10 @@ export const createTenantBusinessRuleService = (
       });
 
       return rule;
-    }),
+    });
+  },
   update: async (ruleId, input) => {
+    requireBusinessPermission(tenant, 'BUSINESS_CONFIGURATION_WRITE');
     return prisma.$transaction(async transaction => {
       const before = await transaction.businessRule.findFirst({
         where: { id: ruleId, businessId: tenant.businessId },

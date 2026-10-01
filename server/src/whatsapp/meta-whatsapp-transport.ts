@@ -36,37 +36,51 @@ export interface MetaWhatsAppTransportOptions {
   readonly fetch?: typeof fetch;
 }
 
-const providerError = (status: number): WhatsAppSendError => {
-  if (status === 401 || status === 403) {
+const metaErrorSchema = z.object({ error: z.object({ code: z.number().int() }) });
+
+export const providerError = (
+  status: number,
+  payload: unknown,
+  retryAfter: string | null = null,
+): WhatsAppSendError => {
+  const providerCode = metaErrorSchema.safeParse(payload).data?.error.code;
+  const details = { providerStatus: status, providerCode };
+  if (status === 401 || status === 403 ||
+      (providerCode !== undefined && [0, 10, 190, 200, 131005, 131031, 131042].includes(providerCode))) {
     return new WhatsAppSendError({
       code: 'AUTHENTICATION',
       message: 'Meta rejected the WhatsApp transport credentials.',
       retryable: false,
-      providerStatus: status,
+      ...details,
     });
   }
-  if (status === 429) {
+  if (status === 429 || (providerCode !== undefined && [4, 80007, 130429, 131056].includes(providerCode))) {
+    const seconds = retryAfter === null ? NaN : Number(retryAfter);
+    const delay = Number.isFinite(seconds) ? seconds * 1_000 : Date.parse(retryAfter ?? '') - Date.now();
     return new WhatsAppSendError({
       code: 'RATE_LIMITED',
       message: 'Meta rate-limited the WhatsApp send request.',
       retryable: true,
-      providerStatus: status,
+      ...details,
+      retryAfterMs: Number.isFinite(delay) ? Math.max(0, Math.min(delay, 86_400_000)) : undefined,
     });
   }
-  if (status >= 500) {
+  // Unknown 5xx may be a gateway failure after acceptance: only retry a
+  // recognized provider rejection. HTTP status alone cannot prove non-delivery.
+  if (providerCode !== undefined && [1, 2, 131000, 131016].includes(providerCode)) {
     return new WhatsAppSendError({
       code: 'PROVIDER_UNAVAILABLE',
       message: 'Meta could not complete the WhatsApp send request.',
       retryable: true,
-      providerStatus: status,
+      ...details,
     });
   }
 
   return new WhatsAppSendError({
-    code: 'INVALID_REQUEST',
+    code: status >= 500 ? 'INVALID_RESPONSE' : 'INVALID_REQUEST',
     message: 'Meta rejected the WhatsApp send request.',
     retryable: false,
-    providerStatus: status,
+    ...details,
   });
 };
 
@@ -120,7 +134,10 @@ export const createMetaWhatsAppTransport = (
           },
         );
 
-        if (!response.ok) throw providerError(response.status);
+        if (!response.ok) {
+          const payload: unknown = await response.json().catch(() => null);
+          throw providerError(response.status, payload, response.headers.get('retry-after'));
+        }
 
         let rawResponse: unknown;
         try {
@@ -157,14 +174,14 @@ export const createMetaWhatsAppTransport = (
           throw new WhatsAppSendError({
             code: 'TIMEOUT',
             message: 'The WhatsApp send request timed out.',
-            retryable: true,
+            retryable: false,
             cause: error,
           });
         }
         throw new WhatsAppSendError({
           code: 'NETWORK',
           message: 'The WhatsApp transport could not reach Meta.',
-          retryable: true,
+          retryable: false,
           cause: error,
         });
       } finally {
