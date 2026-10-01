@@ -10,6 +10,7 @@ import { resolveChannelConversation } from '../conversations/conversation.servic
 import { runCustomerServiceConversation } from '../conversations/customer-service-conversation';
 import { createTenantConversationRepository } from '../conversations/tenant-conversation.repository';
 import { ApplicationError } from '../http/errors';
+import { enforceRateLimit } from '../http/rate-limit';
 import { resolveDashboardTenantContext } from '../tenancy/dashboard-tenant-context';
 import { DASHBOARD_TRANSCRIPT_LIMIT } from './dashboard-agent-channel';
 
@@ -56,6 +57,7 @@ export const handleAiPlaygroundMessage = async (
     input.requestContext,
     input.selectedBusinessId,
   );
+  enforceRateLimit(`ai:${tenant.userId}`, 12);
   const parsed = playgroundRequestSchema.safeParse(await readRequestBody(input.request));
   if (!parsed.success) {
     throw invalidRequest({

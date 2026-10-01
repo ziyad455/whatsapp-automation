@@ -1,5 +1,6 @@
 import type { RequestContext } from '@mastra/core/request-context';
 import { registerApiRoute } from '@mastra/core/server';
+import { enforceRateLimit } from './rate-limit';
 import { z } from 'zod';
 import {
   createTenantLeadDashboardService,
@@ -125,6 +126,7 @@ export const leadDashboardRoutes = [
       );
       const leadId = parseLeadId(context.req.param('leadId'));
       try {
+        enforceRateLimit(`ai:${tenant.userId}`, 12);
         const lead = await createTenantLeadDashboardService(tenant)
           .refreshSummary(leadId);
         return context.json({ lead });

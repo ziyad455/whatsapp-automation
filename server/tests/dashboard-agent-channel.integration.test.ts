@@ -16,6 +16,7 @@ import { runCustomerServiceConversation } from '../src/conversations/customer-se
 import { createTenantConversationRepository } from '../src/conversations/tenant-conversation.repository';
 import { closeDatabaseConnection, prisma } from '../src/db/prisma';
 import { AUTHENTICATED_USER_KEY, initializeRequestContext } from '../src/http/request-context';
+import { applicationRateLimiter } from '../src/http/rate-limit';
 import { createMembership } from '../src/memberships/business-user.repository';
 import { getOpeningHours, openingHoursOutputSchema } from '../src/mastra/tools/business-information-tools';
 import type { TenantContext } from '../src/tenancy/tenant-context';
@@ -93,6 +94,7 @@ describe('dashboard customer-service conversation channel', () => {
   });
 
   beforeEach(async () => {
+    applicationRateLimiter.clear();
     await prisma.conversation.deleteMany({ where: { businessId: { in: [tenantA.tenant.businessId, tenantB.tenant.businessId] } } });
   });
 

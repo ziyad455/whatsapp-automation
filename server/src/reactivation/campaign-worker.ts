@@ -1,8 +1,10 @@
 import { prisma } from '../db/prisma';
+import { signalOperationalFailure } from '../observability/operational-alerts';
 import { applicationLogger } from '../http/logger';
 import { resolveChannelConversation } from '../conversations/conversation.service';
 import type { TenantScope } from '../tenancy/tenant-context';
 import { WhatsAppSendError } from '../whatsapp/whatsapp-send.types';
+import { nextSendAttempt } from '../whatsapp/retry-policy';
 import { sendWhatsAppTemplate } from '../whatsapp/whatsapp-send.service';
 import { evaluateCampaignRecipientEligibility } from './campaign-compliance';
 import {
@@ -11,7 +13,6 @@ import {
 } from './meta-template-verifier';
 
 const BATCH_SIZE = 20;
-const MAX_ATTEMPTS = 3;
 const STALE_CLAIM_MS = 15 * 60_000;
 
 export interface CampaignWorkerDependencies {
@@ -26,9 +27,10 @@ const finishRecipient = async (
   status: 'FAILED' | 'SKIPPED',
   reasonCode: string,
   now: Date,
+  expectedStatus: 'PENDING' | 'SENDING' = 'PENDING',
 ) => {
   await prisma.campaignRecipient.updateMany({
-    where: { id, businessId, status: { in: ['PENDING', 'SENDING'] } },
+    where: { id, businessId, status: expectedStatus },
     data: {
       status,
       ...(status === 'FAILED'
@@ -50,7 +52,7 @@ const verifyCurrentTemplate = async (
   verifier: VerifyCampaignTemplate,
 ) => {
   const connection = await prisma.whatsAppConnection.findFirst({
-    where: { businessId: recipient.businessId, status: 'ACTIVE' },
+    where: { businessId: recipient.businessId, status: 'ACTIVE', outboundBlockedAt: null },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     select: { whatsappBusinessAccountId: true },
   });
@@ -68,7 +70,7 @@ export const processCampaignRecipient = async (
 ): Promise<'SENT' | 'SKIPPED' | 'FAILED' | 'DEFERRED'> => {
   const now = dependencies.now?.() ?? new Date();
   const initial = await prisma.campaignRecipient.findFirst({
-    where: { id, status: 'PENDING', campaign: { status: 'SENDING' } },
+    where: { id, status: 'PENDING', nextAttemptAt: { lte: now }, campaign: { status: 'SENDING' } },
     include: { campaign: true },
   });
   if (!initial) return 'SKIPPED';
@@ -98,7 +100,7 @@ export const processCampaignRecipient = async (
 
   const tenant: TenantScope = Object.freeze({ businessId: initial.businessId });
   const connection = await prisma.whatsAppConnection.findFirst({
-    where: { businessId: initial.businessId, status: 'ACTIVE' },
+    where: { businessId: initial.businessId, status: 'ACTIVE', outboundBlockedAt: null },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     select: { id: true },
   });
@@ -120,6 +122,7 @@ export const processCampaignRecipient = async (
         id,
         businessId: initial.businessId,
         status: 'PENDING',
+        nextAttemptAt: { lte: now },
         campaign: { status: 'SENDING' },
       },
       include: {
@@ -133,10 +136,16 @@ export const processCampaignRecipient = async (
         businessId: current.businessId,
         customerId: current.customerId,
         id: { not: current.id },
-        status: 'SENT',
-        sentAt: { gte: new Date(now.getTime() - 30 * 86_400_000) },
+        OR: [
+          { status: 'SENDING' },
+          { status: 'SENT', sentAt: { gte: new Date(now.getTime() - 30 * 86_400_000) } },
+        ],
       },
     });
+    const currentConversation = conversation ? await transaction.conversation.findFirst({
+      where: { id: conversation.id, businessId: initial.businessId },
+      select: { mode: true, status: true },
+    }) : null;
     const eligibility = evaluateCampaignRecipientEligibility({
       businessActive: current.campaign.business.lifecycleStatus === 'ACTIVE',
       connectionActive: connection !== null,
@@ -145,8 +154,8 @@ export const processCampaignRecipient = async (
       templateName: current.campaign.templateName,
       templateStatus,
       templateCategory: verification.category,
-      customerEligible: conversation !== null &&
-        conversation.mode === 'AI' && conversation.status === 'OPEN',
+      customerEligible: currentConversation !== null &&
+        currentConversation.mode === 'AI' && currentConversation.status === 'OPEN',
       promotionalMessagesInWindow: recentSends,
     });
     if (eligibility !== 'ELIGIBLE' || !connection || !conversation) {
@@ -174,6 +183,7 @@ export const processCampaignRecipient = async (
         where: { id: transport.id },
         data: {
           deliveryStatus: 'PENDING',
+          sendStartedAt: null,
           failedAt: null,
           failureCode: null,
           failureTitle: null,
@@ -262,7 +272,7 @@ export const processCampaignRecipient = async (
     ? claimed.templateParameters
     : null;
   if (!parameters) {
-    await finishRecipient(id, initial.businessId, 'FAILED', 'INVALID_TEMPLATE', now);
+    await finishRecipient(id, initial.businessId, 'FAILED', 'INVALID_TEMPLATE', now, 'SENDING');
     return 'FAILED';
   }
 
@@ -286,14 +296,14 @@ export const processCampaignRecipient = async (
     });
     return 'SENT';
   } catch (error) {
-    const definiteRetryable = error instanceof WhatsAppSendError &&
-      ['RATE_LIMITED', 'PROVIDER_UNAVAILABLE'].includes(error.code);
-    const retry = definiteRetryable && claimed.attemptCount < MAX_ATTEMPTS;
+    const nextAttemptAt = nextSendAttempt(error, claimed.attemptCount, now);
+    const retry = nextAttemptAt !== null;
     const reason = error instanceof WhatsAppSendError ? error.code : 'INDETERMINATE_ATTEMPT';
     await prisma.campaignRecipient.updateMany({
       where: { id, businessId: initial.businessId, status: 'SENDING' },
       data: retry ? {
         status: 'PENDING', claimedAt: null, failureReasonCode: reason,
+        nextAttemptAt: nextAttemptAt!,
       } : {
         status: 'FAILED', claimedAt: null, failedAt: new Date(), failureReasonCode: reason,
       },
@@ -327,7 +337,7 @@ export const processDueCampaignRecipients = async (
   dependencies: CampaignWorkerDependencies = {},
 ): Promise<{ processed: number; sent: number }> => {
   const now = dependencies.now?.() ?? new Date();
-  await prisma.campaignRecipient.updateMany({
+  const stale = await prisma.campaignRecipient.updateMany({
     where: {
       status: 'SENDING',
       claimedAt: { lt: new Date(now.getTime() - STALE_CLAIM_MS) },
@@ -339,8 +349,9 @@ export const processDueCampaignRecipients = async (
       failureReasonCode: 'INDETERMINATE_ATTEMPT',
     },
   });
+  if (stale.count) signalOperationalFailure('STALE_ATTEMPT');
   const pending = await prisma.campaignRecipient.findMany({
-    where: { status: 'PENDING', campaign: { status: 'SENDING' } },
+    where: { status: 'PENDING', nextAttemptAt: { lte: now }, campaign: { status: 'SENDING' } },
     orderBy: [{ selectedAt: 'asc' }, { id: 'asc' }],
     take: BATCH_SIZE,
     select: { id: true, campaignId: true },
@@ -350,8 +361,11 @@ export const processDueCampaignRecipients = async (
     try {
       if (await processCampaignRecipient(recipient.id, dependencies) === 'SENT') sent += 1;
     } catch (error) {
+      signalOperationalFailure('WORKFLOW_FAILURE');
       await prisma.campaignRecipient.updateMany({
-        where: { id: recipient.id, status: { in: ['PENDING', 'SENDING'] } },
+        // This dispatcher has no claim token. Never finalize another worker's
+        // in-flight send; uncertain SENDING claims use stale-attempt recovery.
+        where: { id: recipient.id, status: 'PENDING' },
         data: {
           status: 'FAILED',
           failedAt: new Date(),
@@ -376,8 +390,8 @@ export const processDueCampaignRecipients = async (
 export const syncCampaignRecipientTransportStatus = async (
   tenant: TenantScope,
   externalMessageId: string,
-  status: 'SENT' | 'DELIVERED' | 'READ' | 'FAILED',
-  timestamp: Date,
+  _status: 'SENT' | 'DELIVERED' | 'READ' | 'FAILED',
+  _timestamp: Date,
 ): Promise<void> => {
   const recipient = await prisma.campaignRecipient.findFirst({
     where: {
@@ -386,14 +400,21 @@ export const syncCampaignRecipientTransportStatus = async (
         whatsappMessage: { externalMessageId },
       },
     },
-    select: { id: true },
+    select: { id: true, conversationMessage: { select: { whatsappMessage: true } } },
   });
   if (!recipient) return;
-  await prisma.campaignRecipient.updateMany({
-    where: { id: recipient.id, businessId: tenant.businessId },
-    data: status === 'SENT' ? { sentAt: timestamp }
-      : status === 'DELIVERED' ? { deliveredAt: timestamp }
-        : status === 'READ' ? { readAt: timestamp }
-          : { status: 'FAILED', failedAt: timestamp, failureReasonCode: 'PROVIDER_FAILED' },
+  const transport = recipient.conversationMessage?.whatsappMessage;
+  if (!transport) return;
+  // Reconcile from the canonical ledger, including on webhook replay. A previous
+  // projection failure must not be made permanent by inbound idempotency.
+  for (const field of ['sentAt', 'deliveredAt', 'readAt'] as const) {
+    if (transport[field]) await prisma.campaignRecipient.updateMany({
+      where: { id: recipient.id, businessId: tenant.businessId, [field]: null },
+      data: { [field]: transport[field] },
+    });
+  }
+  if (transport.deliveryStatus === 'FAILED') await prisma.campaignRecipient.updateMany({
+    where: { id: recipient.id, businessId: tenant.businessId, deliveredAt: null, readAt: null },
+    data: { status: 'FAILED', failedAt: transport.failedAt, failureReasonCode: 'PROVIDER_FAILED' },
   });
 };

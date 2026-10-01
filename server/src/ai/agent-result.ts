@@ -45,7 +45,19 @@ const removeUnfinishedEnding = (value: string): string => {
 };
 
 export const normalizeAgentReply = (value: unknown): string => {
-  const reply = removeUnfinishedEnding(z.string().parse(value))
+  const text = z.string().parse(value).trim();
+  const unfenced = text.replace(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/iu, '$1').trim();
+  let structuredOutput = false;
+  try {
+    const parsed: unknown = JSON.parse(unfenced);
+    structuredOutput = parsed !== null && typeof parsed === 'object';
+  } catch { /* Ordinary customer replies are not JSON. */ }
+  if (/^(?:undefined|null)$/iu.test(text) || structuredOutput ||
+    /^(?:[A-Za-z]*Error|API_CALL_ERROR):/u.test(text) ||
+    /\n\s+at\s+\S+.*(?::\d+:\d+|\(native\))/u.test(text)) {
+    throw new Error('The model did not produce a customer-facing reply.');
+  }
+  const reply = removeUnfinishedEnding(text)
     .replace(/\s*—\s*/gu, ', ')
     .trim();
   if (!reply) throw new Error('The model did not produce a customer-facing reply.');

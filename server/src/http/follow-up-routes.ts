@@ -4,6 +4,7 @@ import { createTenantFollowUpService } from '../follow-ups/follow-up.service';
 import { followUpSettingsSchema } from '../follow-ups/follow-up-policy';
 import { BUSINESS_SELECTOR_HEADER, resolveDashboardTenantContext } from '../tenancy/dashboard-tenant-context';
 import { ApplicationError } from './errors';
+import { requireBusinessPermission } from '../tenancy/business-permissions';
 
 const identifierSchema = z.uuid();
 const consentSchema = z.object({
@@ -30,9 +31,7 @@ export const followUpRoutes = [
     handler: async context => {
       const tenant = await resolveDashboardTenantContext(
         context.get('requestContext'), context.req.header(BUSINESS_SELECTOR_HEADER));
-      if (tenant.role !== 'OWNER') throw new ApplicationError({
-        code: 'FORBIDDEN', status: 403, message: 'Only owners can change follow-up settings.',
-      });
+      requireBusinessPermission(tenant, 'FOLLOW_UP_CONFIGURATION_WRITE');
       const parsed = followUpSettingsSchema.safeParse(await context.req.json().catch(() => null));
       if (!parsed.success) throw badRequest();
       return context.json({ settings: await createTenantFollowUpService(tenant).updateSettings(parsed.data) });

@@ -360,6 +360,7 @@ model WhatsAppConnection {
   phoneNumberId             String                   @unique(map: "whatsapp_connections_phone_number_id_unique") @map("phone_number_id") @db.VarChar(100)
   whatsappBusinessAccountId String                   @map("whatsapp_business_account_id") @db.VarChar(100)
   displayPhoneNumber        String?                  @map("display_phone_number") @db.Text
+  outboundBlockedAt         DateTime?                @map("outbound_blocked_at") @db.Timestamptz(6)
   status                    WhatsAppConnectionStatus @default(ACTIVE)
   createdAt                 DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                 DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -412,6 +413,7 @@ model WhatsAppMessage {
   deliveryStatus        WhatsAppDeliveryStatus?          @map("delivery_status")
   providerTimestamp     DateTime?                        @map("provider_timestamp") @db.Timestamptz(6)
   processingStartedAt   DateTime?                        @map("processing_started_at") @db.Timestamptz(6)
+  sendStartedAt         DateTime?                        @map("send_started_at") @db.Timestamptz(6)
   processedAt           DateTime?                        @map("processed_at") @db.Timestamptz(6)
   processingFailedAt    DateTime?                        @map("processing_failed_at") @db.Timestamptz(6)
   sentAt                DateTime?                        @map("sent_at") @db.Timestamptz(6)
@@ -568,6 +570,7 @@ model FollowUp {
 }
 
 model CustomerLifecycleEvent {
+  requestKey            String?                    @map("request_key") @db.Uuid
   id                    String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   businessId            String                     @map("business_id") @db.Uuid
   customerId            String                     @map("customer_id") @db.Uuid
@@ -586,6 +589,7 @@ model CustomerLifecycleEvent {
   attributedRecipients  CampaignRecipient[]        @relation("CampaignRecipientConversion")
 
   @@unique([businessId, id], map: "customer_lifecycle_events_business_id_id_unique")
+  @@unique([businessId, requestKey], map: "customer_lifecycle_events_business_request_key_unique")
   @@index([businessId, customerId, occurredAt(sort: Desc)], map: "customer_lifecycle_events_business_customer_occurred_index")
   @@index([businessId, type, occurredAt(sort: Desc)], map: "customer_lifecycle_events_business_type_occurred_index")
   @@map("customer_lifecycle_events")
@@ -633,6 +637,7 @@ model CampaignRecipient {
   exclusionReasonCode        String?                 @map("exclusion_reason_code") @db.VarChar(80)
   failureReasonCode          String?                 @map("failure_reason_code") @db.VarChar(80)
   attemptCount               Int                     @default(0) @map("attempt_count")
+  nextAttemptAt              DateTime                @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
   selectedAt                 DateTime                @default(now()) @map("selected_at") @db.Timestamptz(6)
   claimedAt                  DateTime?               @map("claimed_at") @db.Timestamptz(6)
   sentAt                     DateTime?               @map("sent_at") @db.Timestamptz(6)
@@ -653,6 +658,7 @@ model CampaignRecipient {
   @@unique([businessId, campaignId, customerId], map: "campaign_recipients_business_campaign_customer_unique")
   @@unique([businessId, conversationMessageId], map: "campaign_recipients_business_conversation_message_unique")
   @@index([status, claimedAt], map: "campaign_recipients_status_claimed_index")
+  @@index([status, nextAttemptAt], map: "campaign_recipients_status_next_attempt_index")
   @@index([businessId, customerId, sentAt(sort: Desc)], map: "campaign_recipients_business_customer_sent_index")
   @@index([businessId, campaignId, status], map: "campaign_recipients_business_campaign_status_index")
   @@map("campaign_recipients")

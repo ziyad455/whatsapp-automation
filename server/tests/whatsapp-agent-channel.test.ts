@@ -242,12 +242,21 @@ describe('WhatsApp shared customer-service channel', () => {
     const repository = repositoryFor(conversation);
     const failure = new Error('Provider unavailable');
     const markFailed = vi.fn().mockResolvedValue({ count: 1 });
+    const sendText = vi.fn();
+    const generateReply = vi.fn(async () => {
+      expect(repository.appendMessage).toHaveBeenCalledWith(conversation.id, {
+        senderType: 'CUSTOMER', content: input.message.content.text,
+        whatsappMessageId: input.inboxMessageId,
+      });
+      throw failure;
+    });
 
     await expect(handleWhatsAppAgentMessage(input, {
       ...ignoredLeadCapture(),
       resolveConversation: vi.fn().mockResolvedValue(conversation),
       createRepository: () => repository as unknown as TenantConversationRepository,
-      generateReply: vi.fn().mockRejectedValue(failure),
+      generateReply,
+      sendText,
       startProcessing: vi.fn().mockResolvedValue({ count: 1 }),
       markProcessed: vi.fn(),
       markFailed,
@@ -255,6 +264,8 @@ describe('WhatsApp shared customer-service channel', () => {
 
     expect(repository.escalateFailedAiRun).toHaveBeenCalledWith(conversation.id, 0);
     expect(markFailed).toHaveBeenCalledWith(input.tenant, input.inboxMessageId);
+    expect(repository.commitAutomatedReply).not.toHaveBeenCalled();
+    expect(sendText).not.toHaveBeenCalled();
   });
 
   it('uses the reserved reply control version when an outbound send fails', async () => {

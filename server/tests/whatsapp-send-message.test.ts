@@ -106,7 +106,7 @@ describe('Meta WhatsApp text transport', () => {
     [401, 'AUTHENTICATION', false],
     [403, 'AUTHENTICATION', false],
     [429, 'RATE_LIMITED', true],
-    [500, 'PROVIDER_UNAVAILABLE', true],
+    [500, 'INVALID_RESPONSE', false],
   ] as const)('maps Meta status %i to %s', async (status, code, retryable) => {
     const transport = createMetaWhatsAppTransport({
       accessToken,
@@ -142,8 +142,18 @@ describe('Meta WhatsApp text transport', () => {
     }).catch((caught: unknown) => caught);
 
     expect(error).toBeInstanceOf(WhatsAppSendError);
-    expect(error).toMatchObject({ code: 'NETWORK', retryable: true });
+    expect(error).toMatchObject({ code: 'NETWORK', retryable: false });
     expect(JSON.stringify(error)).not.toContain(accessToken);
+  });
+
+  it('retries a recognized Meta unavailable rejection rather than an ambiguous gateway failure', async () => {
+    const transport = createMetaWhatsAppTransport({
+      accessToken, apiVersion,
+      fetch: vi.fn().mockResolvedValue(response(503, { error: { code: 131016 } })) as typeof fetch,
+    });
+    await expect(transport.sendText({
+      phoneNumberId: '111111111111111', to: '212600000001', text: 'Test',
+    })).rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE', retryable: true, providerCode: 131016 });
   });
 
   it('classifies malformed successful provider responses without treating them as network failures', async () => {
@@ -184,7 +194,7 @@ describe('Meta WhatsApp text transport', () => {
       phoneNumberId: '111111111111111',
       to: '212600000001',
       text: 'Test',
-    })).rejects.toMatchObject({ code: 'TIMEOUT', retryable: true });
+    })).rejects.toMatchObject({ code: 'TIMEOUT', retryable: false });
   });
 });
 

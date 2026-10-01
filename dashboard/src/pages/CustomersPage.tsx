@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { dashboardApi, getErrorMessage } from '../api/client'
 import type {
   CustomerHistory,
@@ -35,6 +35,7 @@ export function CustomersPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const outcomeRequest = useRef<{ payload: string; key: string } | null>(null)
 
   const loadCustomers = async () => {
     if (!selectedBusiness) return
@@ -73,16 +74,24 @@ export function CustomersPage() {
     setError(null)
     setSuccess(null)
     try {
-      await dashboardApi.createCustomerLifecycleEvent(selectedBusiness.id, selected.id, {
+      const input = {
         type: eventType,
         occurredAt: new Date(occurredAt).toISOString(),
         ...(itemLabel.trim() ? { metadata: { itemLabel: itemLabel.trim() } } : {}),
+      }
+      const payload = JSON.stringify([selectedBusiness.id, selected.id, input])
+      if (outcomeRequest.current?.payload !== payload) {
+        outcomeRequest.current = { payload, key: crypto.randomUUID() }
+      }
+      await dashboardApi.createCustomerLifecycleEvent(selectedBusiness.id, selected.id, {
+        ...input, requestKey: outcomeRequest.current.key,
       })
       const response = await dashboardApi.getCustomerHistory(selectedBusiness.id, selected.id)
       setSelected(response.customer)
       await loadCustomers()
       setItemLabel('')
       setSuccess('Customer outcome recorded.')
+      outcomeRequest.current = null
     } catch (reason) {
       setError(getErrorMessage(reason))
     } finally {

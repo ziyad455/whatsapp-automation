@@ -5,6 +5,7 @@ import type {
 import { appendTenantAuditEvent } from '../audit/tenant-audit.service';
 import { prisma } from '../db/prisma';
 import type { TenantContext } from '../tenancy/tenant-context';
+import { requireBusinessPermission } from '../tenancy/business-permissions';
 
 export type BusinessEntityTypeSummary = BusinessEntityType & {
   fieldCount: number;
@@ -68,8 +69,9 @@ export const createTenantBusinessCatalogService = (
         },
       },
     }),
-  create: input =>
-    prisma.$transaction(async transaction => {
+  create: async input => {
+    requireBusinessPermission(tenant, 'BUSINESS_SCHEMA_WRITE');
+    return prisma.$transaction(async transaction => {
       const entityType = await transaction.businessEntityType.create({
         data: {
           businessId: tenant.businessId,
@@ -90,5 +92,6 @@ export const createTenantBusinessCatalogService = (
       });
 
       return entityType;
-    }),
+    });
+  },
 });

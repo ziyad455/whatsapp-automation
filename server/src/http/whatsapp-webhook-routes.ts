@@ -5,6 +5,8 @@ import { handleWhatsAppAgentMessage } from '../channels/whatsapp-agent-channel';
 import { processInboundWhatsAppWebhook } from '../whatsapp/process-inbound-webhook';
 import { applicationLogger } from './logger';
 import { getOrCreateRequestId } from './request-context';
+import { signalOperationalFailure } from '../observability/operational-alerts';
+import { withCorrelation } from '../observability/correlation';
 
 type VerificationResult =
   | { readonly status: 200; readonly body: string }
@@ -28,7 +30,7 @@ export const verifyWhatsAppWebhookRequest = (
   const challenge = query.get('hub.challenge');
 
   if (
-    mode !== 'subscribe' ||
+    !expectedToken || mode !== 'subscribe' ||
     token === null ||
     challenge === null ||
     challenge.length === 0 ||
@@ -63,6 +65,7 @@ export const whatsappWebhookRoutes = [
       });
 
       if (!result.accepted) {
+        if (result.status === 401) signalOperationalFailure('WEBHOOK_SIGNATURE');
         applicationLogger.warn('WhatsApp webhook rejected', {
           requestId,
           reason: result.status === 401 ? 'invalid-signature' : 'invalid-payload',
@@ -84,7 +87,9 @@ export const whatsappWebhookRoutes = [
         });
 
         try {
-          const response = await handleWhatsAppAgentMessage(resolved);
+          const response = await withCorrelation({
+            businessId: resolved.tenant.businessId, messageId: resolved.inboxMessageId,
+          }, () => handleWhatsAppAgentMessage(resolved));
           applicationLogger.info('WhatsApp inbound message processed', {
             requestId,
             externalMessageId: resolved.message.externalMessageId,
@@ -101,6 +106,9 @@ export const whatsappWebhookRoutes = [
           });
         } catch (error) {
           downstreamFailed = true;
+          signalOperationalFailure('WEBHOOK_PROCESSING', {
+            businessId: resolved.tenant.businessId, messageId: resolved.inboxMessageId,
+          });
           applicationLogger.error('WhatsApp inbound message processing failed', {
             requestId,
             externalMessageId: resolved.message.externalMessageId,

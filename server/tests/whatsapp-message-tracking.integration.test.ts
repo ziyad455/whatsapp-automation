@@ -16,6 +16,7 @@ import {
   startInboundWhatsAppMessageProcessing,
 } from '../src/whatsapp/whatsapp-message.repository';
 import { sendWhatsAppText } from '../src/whatsapp/whatsapp-send.service';
+import { WhatsAppSendError } from '../src/whatsapp/whatsapp-send.types';
 import { resolveWhatsAppTenant } from '../src/whatsapp/whatsapp-tenant-context';
 import { assertIsolatedTestDatabase } from './helpers/assert-test-database';
 
@@ -108,6 +109,58 @@ describe('WhatsApp inbound idempotency and outbound status persistence', () => {
 
   afterAll(async () => {
     await closeDatabaseConnection();
+  });
+
+  it('atomically claims a reserved outbound attempt and rejects tenant substitution', async () => {
+    const { tenant } = await createTenant('Outbound claim A', '898111111111111');
+    const foreign = await createTenant('Outbound claim B', '898222222222222');
+    const customer = await resolveOrCreateWhatsAppCustomer(tenant, '212600000001');
+    const reserved = await prisma.whatsAppMessage.create({ data: {
+      businessId: tenant.businessId, whatsappConnectionId: tenant.whatsappConnectionId,
+      customerId: customer.id, direction: 'OUTBOUND', recipientPhone: '212600000001',
+      deliveryStatus: 'PENDING',
+    } });
+    const sendText = vi.fn().mockResolvedValue({
+      provider: 'WHATSAPP', accepted: true, externalMessageId: 'wamid.atomic-send',
+    });
+    const input = { tenant, to: '212600000001', text: 'Hello', reservedTransportMessageId: reserved.id };
+    await expect(sendWhatsAppText({ ...input, tenant: foreign.tenant }, { transport: { sendText } }))
+      .rejects.toMatchObject({ code: 'INVALID_REQUEST' });
+    expect(sendText).not.toHaveBeenCalled();
+    const outcomes = await Promise.allSettled([1, 2].map(() => sendWhatsAppText(input, { transport: { sendText } })));
+    expect(outcomes.filter(item => item.status === 'fulfilled')).toHaveLength(1);
+    expect(sendText).toHaveBeenCalledOnce();
+    await expect(prisma.whatsAppMessage.findUnique({ where: { id: reserved.id } }))
+      .resolves.toMatchObject({ deliveryStatus: 'SENT', sendStartedAt: expect.any(Date) });
+  });
+
+  it('persists an auth circuit without disabling inbound tenant resolution', async () => {
+    const { tenant } = await createTenant('Auth circuit', '898333333333333');
+    const sendText = vi.fn().mockRejectedValue(new WhatsAppSendError({
+      code: 'AUTHENTICATION', message: 'Credentials rejected.', retryable: false,
+    }));
+    const input = { tenant, to: '212600000001', text: 'Hello' };
+    await expect(sendWhatsAppText(input, { transport: { sendText } })).rejects.toMatchObject({ code: 'AUTHENTICATION' });
+    await expect(sendWhatsAppText(input, { transport: { sendText } })).rejects.toMatchObject({ code: 'CONNECTION_UNAVAILABLE' });
+    expect(sendText).toHaveBeenCalledOnce();
+    await expect(resolveWhatsAppTenant('898333333333333')).resolves.toMatchObject(tenant);
+    await expect(prisma.whatsAppMessage.findFirst({ where: { businessId: tenant.businessId } }))
+      .resolves.toMatchObject({ deliveryStatus: 'FAILED', failureCode: 'AUTHENTICATION' });
+  });
+
+  it('reclaims a stale pre-conversation inbound claim only on a real signed replay', async () => {
+    const { tenant } = await createTenant('Stale claim', '898444444444444');
+    const payload = inboundPayload('898444444444444', 'wamid.stale-claim');
+    const first = await processInboundWhatsAppWebhook(signedRequest(payload), { appSecret });
+    if (!first.accepted) throw new Error('Expected accepted fixture');
+    const id = first.messages[0]!.inboxMessageId;
+    await prisma.whatsAppMessage.update({ where: { id }, data: {
+      updatedAt: new Date(Date.now() - 16 * 60_000),
+    } });
+    const replay = await processInboundWhatsAppWebhook(signedRequest(payload), { appSecret });
+    expect(replay).toMatchObject({ accepted: true, messages: [{ inboxMessageId: id }] });
+    const starts = await Promise.all([1, 2].map(() => startInboundWhatsAppMessageProcessing(tenant, id)));
+    expect(starts.reduce((sum, item) => sum + item.count, 0)).toBe(1);
   });
 
   it('acknowledges an exact duplicate but exposes one downstream-eligible message', async () => {

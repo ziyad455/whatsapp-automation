@@ -1,6 +1,7 @@
 import { Prisma, type FollowUp } from '../generated/prisma/client';
 import { prisma } from '../db/prisma';
 import type { TenantContext, TenantScope } from '../tenancy/tenant-context';
+import { requireBusinessPermission } from '../tenancy/business-permissions';
 import { appendTenantAuditEvent } from '../audit/tenant-audit.service';
 import { followUpSettingsSchema, type FollowUpSettings } from './follow-up-policy';
 
@@ -96,7 +97,7 @@ export const createTenantFollowUpService = (tenant: TenantContext) => ({
     return businessFollowUpSettings(business);
   },
   updateSettings: async (input: FollowUpSettings) => {
-    if (tenant.role !== 'OWNER') throw new Error('Only business owners can update follow-up settings.');
+    requireBusinessPermission(tenant, 'FOLLOW_UP_CONFIGURATION_WRITE');
     const settings = followUpSettingsSchema.parse(input);
     return prisma.$transaction(async transaction => {
       const before = await transaction.business.findUniqueOrThrow({ where: { id: tenant.businessId } });
@@ -123,6 +124,7 @@ export const createTenantFollowUpService = (tenant: TenantContext) => ({
     orderBy: [{ createdAt: 'desc' }],
   }),
   recordConsent: async (leadId: string, consent: boolean) => {
+    requireBusinessPermission(tenant, 'CUSTOMER_PREFERENCE_WRITE');
     const customerId = await prisma.$transaction(async transaction => {
       const lead = await transaction.lead.findFirst({
         where: { id: leadId, businessId: tenant.businessId },

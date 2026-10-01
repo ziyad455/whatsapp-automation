@@ -152,6 +152,27 @@ describe('Better Auth HTTP integration', () => {
     await expect(prisma.session.count({ where: { userId } })).resolves.toBe(0);
   });
 
+  it('denies authenticated business owners access to internal workflow and tool APIs', async () => {
+    const { cookie, response } = await signIn();
+    expect(response.status).toBe(200);
+    for (const [path, method] of [
+      ['/api/workflows', 'GET'],
+      ['/api/workflows/whatsapp-inbound-workflow/start', 'POST'],
+      ['/api/tools', 'GET'],
+      ['/api/tools/get-business-profile/execute', 'POST'],
+      ['/api/agents', 'GET'],
+      ['/%61pi/tools', 'GET'],
+      ['/a%70i/workflows', 'GET'],
+    ] as const) {
+      const denied = await fetch(`${server.baseUrl}${path}`, {
+        method,
+        headers: { cookie, 'x-business-id': businessId, origin: dashboardOrigin },
+      });
+      expect(denied.status).toBe(403);
+      expect(await denied.json()).toMatchObject({ error: { code: 'FORBIDDEN' } });
+    }
+  });
+
   it('rejects an invalid session token', async () => {
     const invalidCookie = `${sessionCookieName}=invalid-session-token`;
     const invalidResponse = await fetch(`${server.baseUrl}/account`, {
@@ -163,7 +184,7 @@ describe('Better Auth HTTP integration', () => {
 
   it('rejects an expired server-side session', async () => {
     const { cookie, response } = await signIn();
-    const session = await prisma.session.findFirstOrThrow({ where: { userId } });
+    const session = await prisma.session.findFirstOrThrow({ where: { userId }, orderBy: { createdAt: 'desc' } });
 
     await prisma.session.update({
       where: { id: session.id },
@@ -176,5 +197,31 @@ describe('Better Auth HTTP integration', () => {
 
     expect(response.status).toBe(200);
     expect(expiredResponse.status).toBe(401);
+  });
+
+  it('rejects oversized request bodies and hostile browser mutation origins', async () => {
+    const { cookie } = await signIn();
+    const oversized = await authRequest('/get-session', {
+      method: 'POST', body: 'x'.repeat(1_048_577),
+    });
+    expect(oversized.status).toBe(413);
+    const hostile = await fetch(`${server.baseUrl}/dashboard/business-profile`, {
+      method: 'PATCH', headers: { cookie, 'x-business-id': businessId, origin: 'https://untrusted.example' },
+      body: '{}',
+    });
+    expect(hostile.status).toBe(403);
+  });
+
+  it('rate-limits sign-in independently of spoofed forwarded IP headers', async () => {
+    let last: Response | undefined;
+    for (let index = 0; index < 21; index += 1) {
+      last = await authRequest('/sign-in/email', {
+        method: 'POST', headers: { 'x-forwarded-for': `192.0.2.${index + 1}` },
+        body: JSON.stringify({ email, password: 'wrong-fake-password' }),
+      });
+      if (last.status === 429) break;
+    }
+    expect(last?.status).toBe(429);
+    expect(last?.headers.get('retry-after')).not.toBeNull();
   });
 });

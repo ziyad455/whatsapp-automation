@@ -5,6 +5,7 @@ import type {
 import { appendTenantAuditEvent } from '../audit/tenant-audit.service';
 import { prisma } from '../db/prisma';
 import type { TenantContext } from '../tenancy/tenant-context';
+import { requireBusinessPermission } from '../tenancy/business-permissions';
 
 export const BUSINESS_WEEKDAYS = [
   'MONDAY',
@@ -116,6 +117,7 @@ export const createTenantOpeningHoursService = (
     getWeek,
     getStoredWeek,
     replaceWeek: async hours => {
+      requireBusinessPermission(tenant, 'BUSINESS_CONFIGURATION_WRITE');
       validateWeek(hours);
 
       return prisma.$transaction(async transaction => {

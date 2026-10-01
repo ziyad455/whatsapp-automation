@@ -6,6 +6,7 @@ import type {
 import { appendTenantAuditEvent } from '../audit/tenant-audit.service';
 import { prisma } from '../db/prisma';
 import type { TenantContext } from '../tenancy/tenant-context';
+import { requireBusinessPermission } from '../tenancy/business-permissions';
 
 export type SupportedBusinessTemplateCategory = 'CAR_RENTAL' | 'SALON' | 'GYM';
 
@@ -179,6 +180,7 @@ const isSupportedCategory = (
 export const applyBusinessTemplate = async (
   tenant: TenantContext,
 ): Promise<BusinessTemplateApplicationResult> => {
+  requireBusinessPermission(tenant, 'BUSINESS_SCHEMA_WRITE');
   const business = await prisma.business.findUnique({
     where: { id: tenant.businessId },
     select: { category: true },

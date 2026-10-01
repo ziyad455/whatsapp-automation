@@ -2,6 +2,7 @@ import type { Business } from '../generated/prisma/client';
 import { appendTenantAuditEvent } from '../audit/tenant-audit.service';
 import { prisma } from '../db/prisma';
 import type { TenantContext } from '../tenancy/tenant-context';
+import { requireBusinessPermission } from '../tenancy/business-permissions';
 
 export interface UpdateBusinessProfileInput {
   name: string;
@@ -29,8 +30,9 @@ export const createTenantBusinessProfileService = (
   tenant: TenantContext,
 ): TenantBusinessProfileService => ({
   get: () => prisma.business.findUnique({ where: { id: tenant.businessId } }),
-  update: input =>
-    prisma.$transaction(async transaction => {
+  update: async input => {
+    requireBusinessPermission(tenant, 'BUSINESS_CONFIGURATION_WRITE');
+    return prisma.$transaction(async transaction => {
       const before = await transaction.business.findUniqueOrThrow({
         where: { id: tenant.businessId },
       });
@@ -64,5 +66,6 @@ export const createTenantBusinessProfileService = (
       });
 
       return after;
-    }),
+    });
+  },
 });

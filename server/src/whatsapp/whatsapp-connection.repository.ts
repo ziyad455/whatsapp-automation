@@ -50,6 +50,13 @@ export const findActiveWhatsAppConnectionForTenant = (
       id: tenant.whatsappConnectionId,
       businessId: tenant.businessId,
       status: 'ACTIVE',
+      outboundBlockedAt: null,
     },
     select: { id: true, businessId: true, phoneNumberId: true },
+  });
+
+export const blockWhatsAppOutbound = (tenant: WhatsAppTenantContext) =>
+  prisma.whatsAppConnection.updateMany({
+    where: { id: tenant.whatsappConnectionId, businessId: tenant.businessId },
+    data: { outboundBlockedAt: new Date() },
   });

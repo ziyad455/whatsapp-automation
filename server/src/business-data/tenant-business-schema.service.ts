@@ -7,6 +7,7 @@ import {
 import { appendTenantAuditEvent } from '../audit/tenant-audit.service';
 import { prisma } from '../db/prisma';
 import type { TenantContext } from '../tenancy/tenant-context';
+import { requireBusinessPermission } from '../tenancy/business-permissions';
 import { parseFieldOptions, validateFieldValue } from './dynamic-entity-validation';
 
 export type BusinessSchemaChangeErrorCode =
@@ -130,8 +131,9 @@ export const createTenantBusinessSchemaService = (
   const businessId = tenant.businessId;
 
   return {
-    addFieldDefinition: input =>
-      prisma.$transaction(async transaction => {
+    addFieldDefinition: async input => {
+      requireBusinessPermission(tenant, 'BUSINESS_SCHEMA_WRITE');
+      return prisma.$transaction(async transaction => {
         const entityType = await transaction.businessEntityType.findFirst({
           where: {
             id: input.entityTypeId,
@@ -197,9 +199,11 @@ export const createTenantBusinessSchemaService = (
         });
 
         return field;
-      }),
-    updateFieldDefinition: (fieldId, input) =>
-      prisma.$transaction(async transaction => {
+      });
+    },
+    updateFieldDefinition: async (fieldId, input) => {
+      requireBusinessPermission(tenant, 'BUSINESS_SCHEMA_WRITE');
+      return prisma.$transaction(async transaction => {
         const field = await transaction.businessFieldDefinition.findFirst({
           where: {
             id: fieldId,
@@ -361,6 +365,7 @@ export const createTenantBusinessSchemaService = (
         });
 
         return updatedField;
-      }),
+      });
+    },
   };
 };

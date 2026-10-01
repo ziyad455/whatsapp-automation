@@ -13,6 +13,12 @@ const createAuthOptions = (signUpEnabled: boolean): BetterAuthOptions => ({
   basePath: '/auth/api',
   secret: env.BETTER_AUTH_SECRET,
   trustedOrigins: [env.DASHBOARD_URL],
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 120,
+    customRules: { '/sign-in/email': { window: 60, max: 20 } },
+  },
   database: prismaAdapter(prisma, {
     provider: 'postgresql',
   }),
@@ -22,6 +28,7 @@ const createAuthOptions = (signUpEnabled: boolean): BetterAuthOptions => ({
     autoSignIn: false,
   },
   advanced: {
+    ipAddress: { ipAddressHeaders: [] },
     useSecureCookies: new URL(env.BETTER_AUTH_URL).protocol === 'https:',
     database: {
       generateId: 'uuid',
